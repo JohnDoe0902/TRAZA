@@ -16,6 +16,13 @@
         <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
+      <select name="prioridad" class="form-select form-select-sm" aria-label="Filtrar por prioridad"
+              onchange="this.form.submit()">
+        <option value="">Todas las prioridades</option>
+        {% for value, label in PRIORITY_LABELS.items() %}
+        <option value="{{ value }}" {% if priority_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
       <noscript><button class="btn btn-sm btn-outline-secondary">Filtrar</button></noscript>
     </form>
     {% if user.role == Role.REQUESTER %}
@@ -34,6 +41,7 @@
           <th scope="col">Título</th>
           <th scope="col">Estado</th>
           <th scope="col">Prioridad</th>
+          {% if user.role != Role.TECHNICIAN %}<th scope="col">Técnico</th>{% endif %}
           <th scope="col" class="text-nowrap">Registrado</th>
         </tr>
       </thead>
@@ -43,7 +51,10 @@
           <td class="font-monospace text-nowrap">
             <a href="/tickets/{{ ticket.public_code }}">{{ ticket.public_code }}</a>
           </td>
-          <td>{{ ticket.title }}</td>
+          <td>
+            {{ ticket.title }}
+            {% if ticket.review_required %}<span class="badge text-bg-warning ms-1">Revisión</span>{% endif %}
+          </td>
           <td><span class="badge {{ STATUS_BADGES[ticket.status] }}">{{ ticket.status | status_label }}</span></td>
           <td>
             {% if ticket.priority %}
@@ -52,6 +63,9 @@
             <span class="text-body-secondary small">Por clasificar</span>
             {% endif %}
           </td>
+          {% if user.role != Role.TECHNICIAN %}
+          <td class="small">{{ ticket.assigned_technician.full_name if ticket.assigned_technician else "—" }}</td>
+          {% endif %}
           <td class="text-nowrap small">{{ ticket.created_at | local_datetime }}</td>
         </tr>
         {% endfor %}
@@ -62,8 +76,8 @@
 {% else %}
 <div class="card shadow-sm">
   <div class="card-body text-center text-body-secondary py-5">
-    {% if status_filter %}
-    No hay tickets en estado «{{ status_filter | status_label }}».
+    {% if status_filter or priority_filter %}
+    No hay tickets con esos filtros.
     {% elif user.role == Role.REQUESTER %}
     Aún no registraste solicitudes.
     {% elif user.role == Role.TECHNICIAN %}

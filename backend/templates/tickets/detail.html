@@ -8,6 +8,10 @@
   </ol>
 </nav>
 
+{% if flash %}
+<div class="alert alert-{{ flash.kind }} py-2" role="status">{{ flash.text }}</div>
+{% endif %}
+
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <h1 class="h3 mb-0"><span class="font-monospace">{{ ticket.public_code }}</span> · {{ ticket.title }}</h1>
   <span class="badge fs-6 {{ STATUS_BADGES[ticket.status] }}">{{ ticket.status | status_label }}</span>
@@ -15,12 +19,76 @@
 
 <div class="row g-4">
   <div class="col-lg-8">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm mb-4">
       <div class="card-body">
         <h2 class="h6 text-body-secondary text-uppercase small">Descripción</h2>
         <p class="ticket-description mb-3">{{ ticket.description }}</p>
         <h2 class="h6 text-body-secondary text-uppercase small">Ubicación</h2>
         <p class="mb-0">{{ ticket.location or "No indicada" }}</p>
+        {% if ticket.resolution_text %}
+        <h2 class="h6 text-body-secondary text-uppercase small mt-3">Solución propuesta</h2>
+        <p class="ticket-description mb-0">{{ ticket.resolution_text }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if actions.can_confirm %}
+    <div class="card shadow-sm border-warning mb-4">
+      <div class="card-body">
+        <h2 class="h5">¿El problema quedó solucionado?</h2>
+        <p class="small text-body-secondary">Tu respuesta cierra el ticket o lo devuelve al técnico.</p>
+        <form method="post" action="/tickets/{{ ticket.public_code }}/confirmar" class="d-flex flex-wrap gap-2">
+          <button type="submit" name="answer" value="YES" class="btn btn-success">Sí, se solucionó</button>
+          <button type="submit" name="answer" value="NO" class="btn btn-outline-danger">No, continúa</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if actions.can_start or actions.can_resolve %}
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="h6 mb-3">Atención técnica</h2>
+        {% if actions.can_start %}
+        <form method="post" action="/tickets/{{ ticket.public_code }}/iniciar">
+          <input type="hidden" name="version" value="{{ ticket.version }}">
+          <button type="submit" class="btn btn-primary">
+            {% if ticket.status == "REABIERTO" %}Retomar atención{% else %}Iniciar atención{% endif %}
+          </button>
+        </form>
+        {% endif %}
+        {% if actions.can_resolve %}
+        <form method="post" action="/tickets/{{ ticket.public_code }}/resolver">
+          <input type="hidden" name="version" value="{{ ticket.version }}">
+          <label for="resolution_text" class="form-label">Solución aplicada <span class="text-danger">*</span></label>
+          <textarea id="resolution_text" name="resolution_text" rows="4" maxlength="2000"
+                    class="form-control mb-2" required aria-describedby="resolution-help"></textarea>
+          <div id="resolution-help" class="form-text mb-3">Entre 10 y 2000 caracteres. El ticket se cierra solo cuando el solicitante lo confirma.</div>
+          <button type="submit" class="btn btn-primary">Proponer solución</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h6 mb-3">Bitácora</h2>
+        <ol class="timeline list-unstyled mb-0">
+          {% for event in events %}
+          <li class="timeline-item">
+            <div class="d-flex flex-wrap justify-content-between gap-2">
+              <strong class="small">{{ event.event_type | event_label }}</strong>
+              <span class="small text-body-secondary text-nowrap">{{ event.created_at | local_datetime("%d/%m/%Y %H:%M:%S") }}</span>
+            </div>
+            {% set detail = describe_event(event, users) %}
+            {% if detail %}<div class="small">{{ detail }}</div>{% endif %}
+            <div class="small text-body-secondary">
+              {% if event.actor_id %}{{ users[event.actor_id].full_name if event.actor_id in users else "Usuario " ~ event.actor_id }}{% elif event.actor_type == "INTEGRATION" %}Integración{% else %}Sistema{% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        </ol>
       </div>
     </div>
   </div>
@@ -41,12 +109,12 @@
         <p class="small text-body-secondary mb-0">Pendiente de clasificación automática.</p>
         {% endif %}
         {% if ticket.review_required %}
-        <div class="alert alert-warning small py-2 mt-3 mb-0">Requiere revisión del administrador.</div>
+        <div class="alert alert-warning small py-2 mt-3 mb-0">Requiere revisión del administrador: no se asigna automáticamente.</div>
         {% endif %}
       </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm mb-4">
       <div class="card-body">
         <h2 class="h6 mb-3">Seguimiento</h2>
         <dl class="row small mb-0">
@@ -54,6 +122,7 @@
           <dt class="col-6">Técnico</dt>
           <dd class="col-6">{{ ticket.assigned_technician.full_name if ticket.assigned_technician else "Sin asignar" }}</dd>
           <dt class="col-6">Registrado</dt><dd class="col-6">{{ ticket.created_at | local_datetime }}</dd>
+          <dt class="col-6">Primera atención</dt><dd class="col-6">{{ ticket.first_response_at | local_datetime }}</dd>
           <dt class="col-6">Actualizado</dt><dd class="col-6">{{ ticket.updated_at | local_datetime }}</dd>
           {% if ticket.closed_at %}
           <dt class="col-6">Cerrado</dt><dd class="col-6">{{ ticket.closed_at | local_datetime }}</dd>
@@ -64,6 +133,27 @@
         </dl>
       </div>
     </div>
+
+    {% if actions.can_assign %}
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h6 mb-3">{% if ticket.assigned_technician_id %}Reasignar{% else %}Asignar técnico{% endif %}</h2>
+        <form method="post" action="/tickets/{{ ticket.public_code }}/asignar">
+          <input type="hidden" name="version" value="{{ ticket.version }}">
+          <label for="technician_id" class="form-label small">Técnico activo</label>
+          <select id="technician_id" name="technician_id" class="form-select form-select-sm mb-2" required>
+            {% for technician in technicians %}
+            <option value="{{ technician.id }}" {% if technician.id == ticket.assigned_technician_id %}selected{% endif %}>{{ technician.full_name }}</option>
+            {% endfor %}
+          </select>
+          <label for="reason" class="form-label small">Motivo {% if ticket.assigned_technician_id %}<span class="text-danger">*</span>{% else %}(opcional){% endif %}</label>
+          <input type="text" id="reason" name="reason" maxlength="500" class="form-control form-control-sm mb-3"
+                 {% if ticket.assigned_technician_id %}required{% endif %}>
+          <button type="submit" class="btn btn-sm btn-primary">Guardar asignación</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

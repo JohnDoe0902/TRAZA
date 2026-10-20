@@ -9,3 +9,49 @@
   text-decoration: none;
   font-weight: 600;
 }
+
+/* Bitácora del ticket */
+.timeline {
+  border-left: 2px solid var(--bs-border-color);
+  margin-left: 0.25rem;
+}
+
+.timeline-item {
+  position: relative;
+  padding: 0 0 0.9rem 1rem;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -0.4rem;
+  top: 0.35rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--bs-primary);
+}
+
+/* Simulador de WhatsApp */
+.chat {
+  max-width: 40rem;
+}
+
+.chat-body {
+  background: #efeae2;
+}
+
+.chat-bubble {
+  background: #fff;
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.6rem;
+  max-width: 90%;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+  overflow-wrap: anywhere;
+}
+
+.chat-bubble-pending {
+  opacity: 0.6;
+  border: 1px dashed var(--bs-border-color);
+}

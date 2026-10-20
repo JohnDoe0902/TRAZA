@@ -3,9 +3,23 @@
 from fastapi import APIRouter, status
 
 from backend.api.deps import CurrentUser, DbSession
-from backend.models.enums import Priority, TicketStatus
-from backend.schemas.ticket import TicketCreate, TicketOut
-from backend.services import ticket_service
+from backend.models.enums import ConfirmationSource, EventType, Priority, TicketStatus
+from backend.repositories import event_repository
+from backend.schemas.ticket import (
+    AssignIn,
+    ConfirmIn,
+    ConfirmOut,
+    EventOut,
+    ResolveIn,
+    TicketCreate,
+    TicketOut,
+    VersionIn,
+)
+from backend.services import (
+    assignment_service,
+    confirmation_service,
+    ticket_service,
+)
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 
@@ -30,3 +44,53 @@ def list_tickets(
 @router.get("/{code}", response_model=TicketOut)
 def get_ticket(code: str, user: CurrentUser, db: DbSession) -> TicketOut:
     return TicketOut.model_validate(ticket_service.get_ticket_for_user(db, user, code))
+
+
+@router.get("/{code}/events", response_model=list[EventOut])
+def list_events(
+    code: str, user: CurrentUser, db: DbSession, type: EventType | None = None
+) -> list[EventOut]:
+    """Bitácora del ticket en orden cronológico, filtrable por tipo (RF-17)."""
+    ticket = ticket_service.get_ticket_for_user(db, user, code)
+    events = event_repository.list_for_ticket(db, ticket.id, event_type=type)
+    return [EventOut.model_validate(event) for event in events]
+
+
+@router.post("/{code}/assign", response_model=TicketOut)
+def assign_ticket(code: str, payload: AssignIn, user: CurrentUser, db: DbSession) -> TicketOut:
+    ticket = ticket_service.get_ticket_for_user(db, user, code)
+    assignment_service.assign_ticket(
+        db,
+        ticket,
+        user,
+        payload.technician_id,
+        reason=payload.reason,
+        expected_version=payload.version,
+    )
+    return TicketOut.model_validate(ticket)
+
+
+@router.post("/{code}/start", response_model=TicketOut)
+def start_ticket(code: str, payload: VersionIn, user: CurrentUser, db: DbSession) -> TicketOut:
+    ticket = ticket_service.get_ticket_for_user(db, user, code)
+    ticket_service.start_work(db, ticket, user, expected_version=payload.version)
+    return TicketOut.model_validate(ticket)
+
+
+@router.post("/{code}/resolve", response_model=TicketOut)
+def resolve_ticket(code: str, payload: ResolveIn, user: CurrentUser, db: DbSession) -> TicketOut:
+    ticket = ticket_service.get_ticket_for_user(db, user, code)
+    ticket_service.propose_resolution(
+        db, ticket, user, payload.resolution_text, expected_version=payload.version
+    )
+    return TicketOut.model_validate(ticket)
+
+
+@router.post("/{code}/confirm", response_model=ConfirmOut)
+def confirm_ticket(code: str, payload: ConfirmIn, user: CurrentUser, db: DbSession) -> ConfirmOut:
+    """Respuesta Sí/No del solicitante por la web. Una respuesta repetida → result IGNORED."""
+    ticket = ticket_service.get_ticket_for_user(db, user, code)
+    outcome = confirmation_service.register_answer(
+        db, ticket=ticket, responder=user, answer=payload.answer, source=ConfirmationSource.WEB
+    )
+    return ConfirmOut(result=outcome.value, status=ticket.status)

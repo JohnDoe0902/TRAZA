@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Simulador de WhatsApp{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-0">Simulador de WhatsApp</h1>
+    <p class="small text-body-secondary mb-0">Solo en desarrollo. Los mensajes no salen a la red.</p>
+  </div>
+  {% if recipients | length > 1 %}
+  <form method="get" action="/simulador">
+    <select name="usuario" class="form-select form-select-sm" aria-label="Elegir chat" onchange="this.form.submit()">
+      {% for recipient in recipients %}
+      <option value="{{ recipient.id }}" {% if selected and recipient.id == selected.id %}selected{% endif %}>
+        {{ recipient.full_name }} · {{ recipient.role | role_label }}
+      </option>
+      {% endfor %}
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-secondary">Ver</button></noscript>
+  </form>
+  {% endif %}
+</div>
+
+{% if flash %}
+<div class="alert alert-{{ flash.kind }} py-2" role="status">{{ flash.text }}</div>
+{% endif %}
+
+{% if not selected %}
+<div class="card shadow-sm"><div class="card-body text-body-secondary">
+  No hay chats para mostrar: tu usuario no aceptó notificaciones por WhatsApp.
+</div></div>
+{% else %}
+<div class="card shadow-sm chat mx-auto">
+  <div class="card-header bg-success-subtle">
+    <strong>{{ selected.full_name }}</strong>
+    <span class="small text-body-secondary">· {{ selected.phone_e164[:4] ~ "•••••" ~ selected.phone_e164[-2:] if selected.phone_e164 else "sin teléfono" }}</span>
+  </div>
+  <div class="card-body chat-body">
+    {% for item in messages %}
+    {% set message = item.notification %}
+    <div class="chat-bubble {% if message.status == 'PENDING' or message.status == 'RETRYING' %}chat-bubble-pending{% endif %}">
+      <div class="small text-body-secondary mb-1">
+        <a href="/tickets/{{ item.ticket_code }}" class="font-monospace">{{ item.ticket_code }}</a>
+        · {{ message.message_type }} {{ message.message_type | message_type_label }}
+      </div>
+      <div>{{ message.body }}</div>
+      <div class="small text-body-secondary text-end mt-1">
+        {{ message.status | notification_status_label }} · {{ (message.sent_at or message.created_at) | local_datetime("%d/%m %H:%M") }}
+      </div>
+      {% if item.can_answer %}
+      <form method="post" action="/simulador/responder" class="d-flex flex-wrap gap-2 mt-2">
+        <input type="hidden" name="notification_id" value="{{ message.id }}">
+        <button type="submit" name="answer" value="YES" class="btn btn-sm btn-success">Sí, se solucionó</button>
+        <button type="submit" name="answer" value="NO" class="btn btn-sm btn-outline-danger">No, continúa</button>
+      </form>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="text-body-secondary text-center my-4">Aún no hay mensajes.</p>
+    {% endfor %}
+  </div>
+</div>
+<p class="small text-body-secondary text-center mt-2">Los mensajes "En cola" aparecen como enviados cuando corre el worker.</p>
+{% endif %}
+{% endblock %}
