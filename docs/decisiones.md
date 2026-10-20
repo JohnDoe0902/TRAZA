@@ -60,3 +60,38 @@ Cada corrida de `pytest` hace `alembic downgrade base` y `upgrade head` sobre `t
 
 ### D-19 · CP-04 sin datos confirmados
 La prueba de altas concurrentes usa varias conexiones, cada una con su transacción, y las revierte al final. Así cumple "cada prueba se revierte" y aun así ejercita `nextval` y el índice único entre conexiones reales. Se comprobó que falla si el código se genera con `max()+1`.
+
+## Fase 2 — Control
+
+### D-20 · La notificación se crea al encolar (reemplaza D-09)
+Al encolar un mensaje se crea en la misma transacción la fila de `notifications` (estado `PENDING`, cuerpo de la plantilla) y el trabajo `SEND_NOTIFICATION` con su `notification_id`. Así `CONFIRMATION_REQUESTED` guarda el id de la notificación (sección 10). La clave de idempotencia es `ticket:tipo:destinatario:correlation_id`.
+
+### D-21 · Solo destinatarios con opt-in
+Se notifica únicamente a usuarios con `whatsapp_opt_in` (RN-14), también por el simulador. En el seed, los técnicos activos y el admin aceptan WhatsApp con teléfonos ficticios para que el aviso A8 se vea en el simulador. Quien no aceptó confirma por la web.
+
+### D-22 · Reasignación desde EN_PROCESO
+Devuelve el ticket a `ASIGNADO` y registra `TICKET_ASSIGNED` y `TICKET_STATUS_CHANGED`. La tabla 8.2 solo menciona el primero, pero la regla 3 exige un evento por cada cambio de estado. `ASIGNADO → ASIGNADO` solo registra `TICKET_ASSIGNED`. La reapertura usa `TICKET_REOPENED` (con estados anterior y nuevo) como evento del cambio, como indica la tabla.
+
+### D-23 · Cierre excepcional del administrador no implementado
+Es deseable (D) y la sección 21 lo deja pendiente.
+
+### D-24 · Detalles de `RuleProvider`
+Analiza solo título y descripción (la ubicación "Oficina…" volvería AREA cualquier falla personal). Su confianza es nula, así que no dispara RN-04 por sí sola. Se agregaron palabras para `SOFTWARE` y "sospechoso" para `SEGURIDAD`; la seguridad se evalúa primero.
+
+### D-25 · Simulador
+`/simulador` solo existe con `APP_ENV` development o test. El admin ve los chats de todos los usuarios con WhatsApp; los demás, solo el suyo. La respuesta queda a nombre del destinatario del mensaje con `source = SIMULATOR` y `provider_event_id = sim-<notificación>-<respuesta>`, de modo que pulsar dos veces el mismo botón es un duplicado.
+
+### D-26 · Mecanismo de fallback listo antes de OpenAI
+`classification_service` ya cae a reglas ante excepción, timeout o salida inválida (probado con un proveedor falso). CP-06 se cierra formalmente en la Fase 3 con `OpenAIProvider`, que deberá convertir sus timeouts en `TimeoutError`.
+
+### D-27 · `outbox_jobs.started_at`
+Migración 0002. Marca cuándo el worker tomó el trabajo; con ella se detectan los `RUNNING` abandonados por más de 10 minutos (CP-18).
+
+### D-28 · Versión del ticket en las operaciones
+Cada operación compara la versión enviada por el cliente una sola vez, al inicio. Además, SQLAlchemy usa `tickets.version` como `version_id_col`: si otra transacción cambió el ticket entre la lectura y la escritura, el UPDATE falla y se responde 409.
+
+### D-29 · Respuestas repetidas o tardías
+Se distinguen en `DUPLICATE_ANSWER_IGNORED.reason`: `duplicate` (mismo `provider_event_id` o choque con otra respuesta del mismo ciclo) y `not_pending` (el ticket ya no espera confirmación). La API web responde 200 con `result = IGNORED`.
+
+### D-30 · Ciclo de confirmación
+`confirmation_round = reopen_count + 1`: la primera solución es la ronda 1 y cada reapertura abre una ronda nueva.
