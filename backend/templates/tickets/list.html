@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Tickets{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-0">
+      {% if user.role == Role.REQUESTER %}Mis solicitudes{% elif user.role == Role.TECHNICIAN %}Tickets asignados{% else %}Todos los tickets{% endif %}
+    </h1>
+  </div>
+  <div class="d-flex gap-2">
+    <form method="get" action="/tickets" class="d-flex gap-2">
+      <select name="estado" class="form-select form-select-sm" aria-label="Filtrar por estado"
+              onchange="this.form.submit()">
+        <option value="">Todos los estados</option>
+        {% for value, label in STATUS_LABELS.items() %}
+        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <noscript><button class="btn btn-sm btn-outline-secondary">Filtrar</button></noscript>
+    </form>
+    {% if user.role == Role.REQUESTER %}
+    <a href="/tickets/nuevo" class="btn btn-primary btn-sm text-nowrap">Nueva solicitud</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if tickets %}
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Código</th>
+          <th scope="col">Título</th>
+          <th scope="col">Estado</th>
+          <th scope="col">Prioridad</th>
+          <th scope="col" class="text-nowrap">Registrado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ticket in tickets %}
+        <tr>
+          <td class="font-monospace text-nowrap">
+            <a href="/tickets/{{ ticket.public_code }}">{{ ticket.public_code }}</a>
+          </td>
+          <td>{{ ticket.title }}</td>
+          <td><span class="badge {{ STATUS_BADGES[ticket.status] }}">{{ ticket.status | status_label }}</span></td>
+          <td>
+            {% if ticket.priority %}
+            <span class="badge {{ PRIORITY_BADGES[ticket.priority] }}">{{ ticket.priority | priority_label }}</span>
+            {% else %}
+            <span class="text-body-secondary small">Por clasificar</span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap small">{{ ticket.created_at | local_datetime }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card shadow-sm">
+  <div class="card-body text-center text-body-secondary py-5">
+    {% if status_filter %}
+    No hay tickets en estado «{{ status_filter | status_label }}».
+    {% elif user.role == Role.REQUESTER %}
+    Aún no registraste solicitudes.
+    {% elif user.role == Role.TECHNICIAN %}
+    No tienes tickets asignados.
+    {% else %}
+    No hay tickets registrados.
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

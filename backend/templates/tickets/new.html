@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Nueva solicitud{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h1 class="h3 mb-3">Nueva solicitud de soporte</h1>
+    {% if errors %}
+    <div class="alert alert-danger py-2" role="alert">Revisa los campos marcados. No se guardó la solicitud.</div>
+    {% endif %}
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <form method="post" action="/tickets/nuevo" novalidate>
+          <div class="mb-3">
+            <label for="title" class="form-label">Título <span class="text-danger">*</span></label>
+            <input type="text" id="title" name="title" maxlength="120"
+                   class="form-control {% if errors.title %}is-invalid{% endif %}"
+                   value="{{ form.title or '' }}" aria-describedby="title-help" required>
+            {% if errors.title %}<div class="invalid-feedback">{{ errors.title }}</div>{% endif %}
+            <div id="title-help" class="form-text">Entre 5 y 120 caracteres. Ej.: «Laboratorio 3 sin internet».</div>
+          </div>
+          <div class="mb-3">
+            <label for="description" class="form-label">Descripción <span class="text-danger">*</span></label>
+            <textarea id="description" name="description" rows="5" maxlength="2000"
+                      class="form-control {% if errors.description %}is-invalid{% endif %}"
+                      aria-describedby="description-help" required>{{ form.description or '' }}</textarea>
+            {% if errors.description %}<div class="invalid-feedback">{{ errors.description }}</div>{% endif %}
+            <div id="description-help" class="form-text">Entre 10 y 2000 caracteres. Cuenta qué pasa, desde cuándo y a cuántas personas afecta.</div>
+          </div>
+          <div class="mb-4">
+            <label for="location" class="form-label">Ubicación</label>
+            <input type="text" id="location" name="location" maxlength="120"
+                   class="form-control {% if errors.location %}is-invalid{% endif %}"
+                   value="{{ form.location or '' }}" aria-describedby="location-help">
+            {% if errors.location %}<div class="invalid-feedback">{{ errors.location }}</div>{% endif %}
+            <div id="location-help" class="form-text">Opcional, hasta 120 caracteres. Ej.: «Laboratorio de cómputo 3».</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Registrar solicitud</button>
+            <a href="/tickets" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
