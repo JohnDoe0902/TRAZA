@@ -28,7 +28,7 @@ from backend.core.config import get_settings  # noqa: E402
 from backend.core.db import get_db  # noqa: E402
 from backend.models import User  # noqa: E402
 from backend.models.enums import Role  # noqa: E402
-from tests.helpers import TEST_PASSWORD, TEST_PASSWORD_HASH  # noqa: E402
+from tests.helpers import TEST_PASSWORD, TEST_PASSWORD_HASH, Actors  # noqa: E402
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 
@@ -119,6 +119,17 @@ def make_user(db: Session) -> Callable[..., User]:
         return user
 
     return _make_user
+
+
+@pytest.fixture
+def actors(make_user: Callable[..., User]) -> Actors:
+    """Solicitante y técnico con WhatsApp, otro técnico y un administrador."""
+    return Actors(
+        requester=make_user(Role.REQUESTER, whatsapp_opt_in=True, full_name="Elena Quispe"),
+        technician=make_user(Role.TECHNICIAN, whatsapp_opt_in=True, full_name="Bruno Salas"),
+        other_technician=make_user(Role.TECHNICIAN, full_name="Carla Ríos"),
+        admin=make_user(Role.ADMIN, full_name="Ana Torres"),
+    )
 
 
 @pytest.fixture

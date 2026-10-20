@@ -12,12 +12,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.core.errors import NotAuthorized
-from backend.models import OutboxJob, Ticket, TicketEvent, User
+from backend.models import Notification, OutboxJob, Ticket, TicketEvent, User
 from backend.models.enums import (
     ActorType,
     EventType,
     JobStatus,
     JobType,
+    MessageType,
+    NotificationStatus,
     Role,
     TicketStatus,
 )
@@ -90,13 +92,26 @@ def test_cp01_solicitante_con_whatsapp_tambien_encola_mensaje_a1(
 
     jobs = db.scalars(select(OutboxJob).where(OutboxJob.ticket_id == ticket.id)).all()
     assert [job.job_type for job in jobs] == [JobType.CLASSIFY_TICKET, JobType.SEND_NOTIFICATION]
+    notification = db.scalars(select(Notification).where(Notification.ticket_id == ticket.id)).one()
+    assert notification.message_type == MessageType.A1
+    assert notification.recipient_user_id == requester.id
+    assert notification.status == NotificationStatus.PENDING  # nada se envía en el alta
+    assert ticket.public_code in notification.body
     notification_payload = jobs[1].payload_safe_json
-    assert notification_payload["message_type"] == "A1"
-    assert notification_payload["recipient_user_id"] == requester.id
+    assert notification_payload["notification_id"] == notification.id
     # El payload no lleva datos personales (RN-14): ni teléfono, ni correo, ni nombre.
     payload_text = str(notification_payload)
     assert requester.phone_e164 not in payload_text
     assert requester.email not in payload_text
+    assert requester.full_name not in payload_text
+
+
+def test_cp01_solicitante_sin_whatsapp_no_recibe_mensajes(db: Session, make_user: MakeUser) -> None:
+    ticket = _create_ticket(db, make_user(Role.REQUESTER, whatsapp_opt_in=False))
+
+    jobs = db.scalars(select(OutboxJob).where(OutboxJob.ticket_id == ticket.id)).all()
+    assert [job.job_type for job in jobs] == [JobType.CLASSIFY_TICKET]
+    assert db.scalars(select(Notification).where(Notification.ticket_id == ticket.id)).all() == []
 
 
 def test_rnf04_falla_al_encolar_revierte_ticket_y_evento(
