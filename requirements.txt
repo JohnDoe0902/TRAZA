@@ -1,0 +1,17 @@
+# Aplicación
+fastapi==0.155.0
+uvicorn[standard]==0.54.0
+pydantic[email]==2.14.1
+pydantic-settings==2.16.1
+SQLAlchemy==2.1.5
+alembic==1.20.0
+psycopg[binary]==3.3.6
+Jinja2==3.1.6
+python-multipart==0.0.32
+itsdangerous==2.2.0
+argon2-cffi==25.1.0
+
+# Desarrollo y pruebas
+pytest==9.1.1
+httpx==0.28.1
+ruff==0.17.1
