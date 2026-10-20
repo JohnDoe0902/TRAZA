@@ -14,5 +14,5 @@ tzdata==2026.5
 
 # Desarrollo y pruebas
 pytest==9.1.1
-httpx==0.28.1
+httpx2==2.15.1
 ruff==0.17.1

@@ -3,6 +3,8 @@
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 
+from backend.core.templating import templates
+
 
 class DomainError(Exception):
     status_code: int = status.HTTP_400_BAD_REQUEST
@@ -48,9 +50,6 @@ async def domain_error_handler(request: Request, exc: Exception) -> Response:
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
     if isinstance(exc, NotAuthenticated):
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
-
-    from backend.core.templating import templates
-
     return templates.TemplateResponse(
         request,
         "error.html",
