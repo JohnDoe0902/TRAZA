@@ -18,6 +18,10 @@ def add(db: Session, ticket: Ticket) -> Ticket:
     return ticket
 
 
+def get_by_id(db: Session, ticket_id: int) -> Ticket | None:
+    return db.get(Ticket, ticket_id)
+
+
 def get_by_code(db: Session, public_code: str) -> Ticket | None:
     return db.scalar(select(Ticket).where(Ticket.public_code == public_code))
 

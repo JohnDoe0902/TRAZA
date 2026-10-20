@@ -30,6 +30,11 @@ class NotFound(DomainError):
     default_message = "No se encontró el recurso solicitado."
 
 
+class BusinessRuleViolation(DomainError):
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+    default_message = "La operación no cumple las reglas del sistema."
+
+
 class InvalidTransition(DomainError):
     status_code = status.HTTP_409_CONFLICT
     default_message = "El cambio de estado solicitado no está permitido."
