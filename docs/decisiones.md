@@ -39,3 +39,24 @@ Los tickets del seed se crean con el mismo `ticket_service` que usa la web, así
 
 ### D-12 · Usuario técnico de prueba inactivo
 `tecnico3@traza.test` es el técnico inactivo del seed. No puede iniciar sesión (RF-01).
+
+### D-13 · Tipos de mensaje A1–A8
+La sección 12 dice que `notifications.message_type` va de A1 a A6, pero la sección 16 define también A7 (recordatorio) y A8 (aviso al técnico), que se envían como notificaciones. El CHECK admite A1–A8.
+
+### D-14 · `httpx2` en lugar de `httpx`
+Starlette 1.9 marca como obsoleto su `TestClient` con `httpx` y pide `httpx2` (la continuación de HTTPX). `requirements.txt` instala `httpx2`.
+
+### D-15 · Correo sin `EmailStr`
+`email-validator` rechaza el dominio reservado `.test` que exige la sección 19 para los datos de prueba. El login valida el correo como texto (3–254 caracteres) y lo compara sin distinguir mayúsculas.
+
+### D-16 · Regla N818 de ruff desactivada
+Los nombres `InvalidTransition`, `NotAuthorized`, etc. vienen de `CLAUDE.md`; ruff pediría el sufijo `Error`.
+
+### D-17 · Mensajes de validación
+El formulario web muestra los errores en español junto a cada campo. La API JSON devuelve el 422 estándar de FastAPI (detalle por campo, mensajes en inglés); traducirlos queda pendiente.
+
+### D-18 · Base de pruebas
+Cada corrida de `pytest` hace `alembic downgrade base` y `upgrade head` sobre `traza_test`, lo que además prueba la migración en ambos sentidos. Como protección, las pruebas se niegan a correr si `TEST_DATABASE_URL` apunta a la misma base que `DATABASE_URL`.
+
+### D-19 · CP-04 sin datos confirmados
+La prueba de altas concurrentes usa varias conexiones, cada una con su transacción, y las revierte al final. Así cumple "cada prueba se revierte" y aun así ejercita `nextval` y el índice único entre conexiones reales. Se comprobó que falla si el código se genera con `max()+1`.
