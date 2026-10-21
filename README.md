@@ -4,6 +4,8 @@ Sistema web para registrar, clasificar, priorizar y dar seguimiento a las solici
 
 Proyecto académico del curso Automatización y Control de Software (2026-II), grupo G3. La especificación completa está en [`docs/especificacion.md`](docs/especificacion.md) y las decisiones tomadas durante el desarrollo, en [`docs/decisiones.md`](docs/decisiones.md).
 
+Para colaborar (ramas, commits, pull requests y migraciones), lee [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Requisitos
 
 - Python 3.13
