@@ -3,6 +3,8 @@
 - Solo se notifica a usuarios con `whatsapp_opt_in` (RN-14).
 - Cada notificación tiene `idempotency_key` y estado propio (RN-09).
 - El estado solo avanza con la respuesta del proveedor o del simulador (regla 9).
+- Si hay un redactor externo (GPT), redacta justo antes del primer envío; si falla o su texto
+  no pasa la validación de la sección 13.2, se envía la plantilla (regla 6).
 """
 
 import uuid
@@ -11,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.clock import utcnow
 from backend.core.config import get_settings
-from backend.integrations.base import NotificationProvider, OutgoingMessage
+from backend.integrations.base import MessageComposer, NotificationProvider, OutgoingMessage
 from backend.models import Notification, OutboxJob, Ticket, User
 from backend.models.enums import (
     ActorType,
@@ -93,6 +95,7 @@ def deliver(
     notification_id: int,
     provider: NotificationProvider,
     correlation_id: uuid.UUID,
+    composer: MessageComposer | None = None,
 ) -> None:
     """Entrega una notificación (trabajo del worker). Repetirlo no reenvía lo ya enviado."""
     notification = notification_repository.get(db, notification_id)
@@ -101,6 +104,11 @@ def deliver(
     recipient = user_repository.get_by_id(db, notification.recipient_user_id)
     ticket = db.get(Ticket, notification.ticket_id)
     assert recipient is not None and ticket is not None
+
+    composer_details: dict[str, str] = {"composer": "templates"}
+    # Solo en el primer intento: un reintento reenvía el mismo texto, sin volver a llamar a GPT.
+    if composer is not None and composer.name != "templates" and notification.attempt_count == 0:
+        notification.body, composer_details = _compose(composer, notification, ticket)
 
     message = OutgoingMessage(
         notification_id=notification.id,
@@ -147,8 +155,30 @@ def deliver(
                 "notification_id": notification.id,
                 "message_type": notification.message_type.value,
                 "channel": notification.channel.value,
+                **composer_details,
             },
         )
+
+
+def _compose(
+    composer: MessageComposer, notification: Notification, ticket: Ticket
+) -> tuple[str, dict[str, str]]:
+    """Texto a enviar y cómo se obtuvo. Ante cualquier problema, la plantilla ya guardada."""
+    request = message_service.compose_request(
+        notification.message_type,
+        ticket.public_code,
+        ticket.status,
+        attempt=notification.attempt_count + 1,
+    )
+    try:
+        text = composer.compose(request)
+    except Exception as exc:
+        reason = "timeout" if isinstance(exc, TimeoutError) else "composer_error"
+        return notification.body, {"composer": "templates", "composer_fallback": reason}
+    rejection = message_service.validate_message(text, ticket.public_code, ticket.status)
+    if rejection is not None:
+        return notification.body, {"composer": "templates", "composer_fallback": rejection}
+    return text, {"composer": composer.name}
 
 
 def mark_failed(db: Session, notification_id: int) -> None:

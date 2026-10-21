@@ -19,10 +19,14 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from backend.core.clock import utcnow
-from backend.core.config import get_settings
+from backend.core.config import ConfigurationError, get_settings
 from backend.core.db import SessionLocal
 from backend.integrations import factory
-from backend.integrations.base import ClassificationProvider, NotificationProvider
+from backend.integrations.base import (
+    ClassificationProvider,
+    MessageComposer,
+    NotificationProvider,
+)
 from backend.models import OutboxJob
 from backend.models.enums import JobType
 from backend.services import (
@@ -43,6 +47,7 @@ class Providers:
         default_factory=factory.get_fallback_classifier
     )
     notifier: NotificationProvider = field(default_factory=factory.get_notification_provider)
+    composer: MessageComposer = field(default_factory=factory.get_composer)
 
 
 Handler = Callable[[Session, OutboxJob, Providers], None]
@@ -75,6 +80,7 @@ def _send_notification(db: Session, job: OutboxJob, providers: Providers) -> Non
         int(job.payload_safe_json["notification_id"]),
         providers.notifier,
         _correlation_id(job),
+        composer=providers.composer,
     )
 
 
@@ -143,9 +149,19 @@ def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    providers = Providers()
+    try:
+        providers = Providers()
+    except ConfigurationError as exc:
+        logger.error("No se puede iniciar el worker: %s", exc)
+        raise SystemExit(2) from exc
     poll_seconds = get_settings().outbox_poll_seconds
-    logger.info("Worker iniciado (cada %s s)", poll_seconds)
+    logger.info(
+        "Worker iniciado (cada %s s). Clasificador: %s · redactor: %s · mensajería: %s",
+        poll_seconds,
+        providers.classifier.name.value,
+        providers.composer.name,
+        providers.notifier.channel.value,
+    )
     while True:
         with SessionLocal() as db:
             processed = (
