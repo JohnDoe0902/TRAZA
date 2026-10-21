@@ -71,3 +71,24 @@ class NotificationProvider(Protocol):
     channel: NotificationChannel
 
     def send(self, message: OutgoingMessage) -> SendResult: ...
+
+
+class ProviderOutputError(ValueError):
+    """El proveedor respondió sin una salida utilizable (vacía, rechazada o fuera de esquema)."""
+
+
+@dataclass(frozen=True)
+class ComposeRequest:
+    """Lo único que recibe un redactor: datos verificados del ticket, nunca nombres (RN-14)."""
+
+    message_type: MessageType
+    purpose: str
+    ticket_code: str
+    status_label: str
+    base_message: str
+
+
+class MessageComposer(Protocol):
+    name: str
+
+    def compose(self, request: ComposeRequest) -> str: ...

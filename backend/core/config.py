@@ -7,6 +7,10 @@ from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+class ConfigurationError(RuntimeError):
+    """Configuración incompleta o contradictoria: el proceso no debe arrancar así."""
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

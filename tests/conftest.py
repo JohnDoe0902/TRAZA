@@ -14,6 +14,11 @@ from pathlib import Path
 
 os.environ["APP_ENV"] = "test"
 os.environ.setdefault("SECRET_KEY", secrets.token_urlsafe(32))
+# Aunque el .env de quien corre las pruebas use OpenAI o WhatsApp, aquí siempre van simuladores.
+os.environ["CLASSIFIER_PROVIDER"] = "mock"
+os.environ["MESSAGE_COMPOSER"] = "templates"
+os.environ["NOTIFICATION_PROVIDER"] = "simulated"
+os.environ["OPENAI_API_KEY"] = ""
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402
@@ -46,6 +51,19 @@ def _test_database_url() -> str:
             returncode=2,
         )
     return settings.test_database_url
+
+
+@pytest.fixture(autouse=True)
+def _no_real_openai_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Red de seguridad: cualquier llamada real a la API de OpenAI hace fallar la prueba."""
+
+    def blocked(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Las pruebas no pueden llamar a la API real de OpenAI.")
+
+    from openai.resources.responses import Responses
+
+    monkeypatch.setattr(Responses, "parse", blocked)
+    monkeypatch.setattr(Responses, "create", blocked)
 
 
 @pytest.fixture(scope="session")
