@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16
+    container_name: traza-db
+    environment:
+      POSTGRES_USER: traza
+      POSTGRES_PASSWORD: traza
+      POSTGRES_DB: traza
+    ports:
+      - "5432:5432"
+    volumes:
+      - traza-db-data:/var/lib/postgresql/data
+      # Crea la base de pruebas traza_test en el primer arranque.
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U traza -d traza"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  traza-db-data:
