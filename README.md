@@ -66,11 +66,11 @@ El seed crea 1 administrador, 2 técnicos activos, 1 técnico inactivo, 3 solici
 
 | Correo | Rol |
 |---|---|
-| `admin@traza.test` | Administrador |
-| `tecnico1@traza.test`, `tecnico2@traza.test` | Técnico |
-| `tecnico3@traza.test` | Técnico inactivo (no puede entrar) |
+| `admin@traza.test` | Administrador (con WhatsApp simulado) |
+| `tecnico1@traza.test`, `tecnico2@traza.test` | Técnico (con WhatsApp simulado) |
+| `tecnico3@traza.test` | Técnico inactivo (no puede entrar ni recibe tickets) |
 | `solicitante1@traza.test`, `solicitante2@traza.test` | Solicitante con WhatsApp |
-| `solicitante3@traza.test` | Solicitante sin WhatsApp |
+| `solicitante3@traza.test` | Solicitante sin WhatsApp (confirma por la web) |
 
 El seed es idempotente: si ya hay usuarios, no hace nada. Para empezar de cero: `alembic downgrade base && alembic upgrade head && python -m backend.scripts.seed`.
 
@@ -81,6 +81,28 @@ uvicorn backend.main:app --reload
 ```
 
 Abre <http://localhost:8000> e inicia sesión con uno de los usuarios del seed.
+
+### 6. Arrancar el worker
+
+La clasificación, la asignación automática y el envío de mensajes no ocurren al registrar el ticket: los hace el worker a partir de la tabla `outbox_jobs`. En otra terminal:
+
+```bash
+python -m backend.workers.process_outbox          # bucle continuo
+python -m backend.workers.process_outbox --once   # procesa lo pendiente y termina
+```
+
+Tras el seed, una pasada del worker clasifica TRZ-0001 a TRZ-0005 como en la sección 19 de la especificación y asigna los que no requieren revisión. TRZ-0005 (seguridad) queda pendiente de revisión del administrador.
+
+## Demo del ciclo completo
+
+1. Como `solicitante1`, registra una solicitud en **Nueva solicitud**.
+2. Corre el worker: el ticket se clasifica y se asigna al técnico con menos carga.
+3. Como el técnico asignado, abre el ticket, pulsa **Iniciar atención** y luego **Proponer solución**.
+4. Corre el worker para "enviar" la pregunta de confirmación.
+5. En **Simulador** (solo en desarrollo) aparece el chat del solicitante con los botones **Sí, se solucionó** / **No, continúa**. Con "No" el ticket se reabre y el técnico recibe el aviso; con "Sí" se cierra.
+6. La **Bitácora** del detalle muestra cada paso con su actor y hora.
+
+Ningún mensaje sale a la red: el canal es el simulador (`NOTIFICATION_PROVIDER=simulated`) y el clasificador es el mock (`CLASSIFIER_PROVIDER=mock`).
 
 ## Pruebas y calidad
 
@@ -104,6 +126,8 @@ backend/
   schemas/         # esquemas Pydantic
   repositories/    # acceso a datos
   services/        # lógica de negocio
+  integrations/    # adaptadores: clasificadores (mock, reglas) y WhatsApp simulado
+  workers/         # worker de outbox_jobs
   templates/       # plantillas Jinja2
   static/          # CSS propio
   scripts/         # seed
@@ -114,4 +138,7 @@ docs/              # especificación, decisiones
 
 ## Estado
 
-Fase 1 (Núcleo) de la sección 18 de la especificación: login con roles, alta y listado de tickets con código único, evento `TICKET_CREATED` y trabajo en `outbox_jobs`. La clasificación, asignación, notificaciones y confirmación llegan en las fases siguientes.
+- Fase 1 (Núcleo): login con roles, alta y listado de tickets con código único, evento `TICKET_CREATED` y trabajo en `outbox_jobs`.
+- Fase 2 (Control): máquina de estados, asignación manual y automática, bitácora en el detalle, matriz de prioridad, clasificador mock y por reglas con fallback, worker de outbox con reintentos, notificaciones simuladas, confirmación por web y simulador.
+
+Pendiente: GPT real y validación de clasificación por el admin (Fase 3), recordatorios, plazos y webhook de WhatsApp (Fase 4), panel de monitoreo (Fase 5).

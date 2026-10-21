@@ -25,6 +25,9 @@
           {% if user.role == Role.REQUESTER %}
           <li class="nav-item"><a class="nav-link" href="/tickets/nuevo">Nueva solicitud</a></li>
           {% endif %}
+          {% if SIMULATOR_ENABLED %}
+          <li class="nav-item"><a class="nav-link" href="/simulador">Simulador</a></li>
+          {% endif %}
         </ul>
         <span class="navbar-text me-3">
           {{ user.full_name }}

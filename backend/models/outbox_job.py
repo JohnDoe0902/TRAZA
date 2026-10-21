@@ -26,4 +26,6 @@ class OutboxJob(CommonColumnsMixin, Base):
     attempts: Mapped[int] = mapped_column(default=0, server_default=text("0"))
     next_run_at: Mapped[datetime] = mapped_column(tz_datetime(), server_default=func.now())
     last_error: Mapped[str | None] = mapped_column(Text)
+    # Momento en que el worker lo tomó (RUNNING); sirve para detectar trabajos abandonados.
+    started_at: Mapped[datetime | None] = mapped_column(tz_datetime())
     completed_at: Mapped[datetime | None] = mapped_column(tz_datetime())

@@ -28,6 +28,7 @@ alembic upgrade head                           # aplicar migraciones
 python -m backend.scripts.seed                 # usuarios y tickets de prueba
 uvicorn backend.main:app --reload              # servidor en http://localhost:8000
 python -m backend.workers.process_outbox       # worker de la cola
+python -m backend.workers.process_outbox --once  # procesa lo pendiente y termina
 pytest                                         # todas las pruebas
 pytest tests/unit -q                           # solo unitarias
 ruff check . && ruff format .                  # lint y formato

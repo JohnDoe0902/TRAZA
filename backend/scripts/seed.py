@@ -28,10 +28,12 @@ class SeedUser:
     is_active: bool = True
 
 
+# Teléfonos ficticios. Los técnicos activos y el admin aceptan WhatsApp para ver en el simulador
+# los avisos que les corresponden (por ejemplo A8, "el problema continúa").
 SEED_USERS = (
-    SeedUser("Ana Torres", "admin@traza.test", Role.ADMIN),
-    SeedUser("Bruno Salas", "tecnico1@traza.test", Role.TECHNICIAN),
-    SeedUser("Carla Ríos", "tecnico2@traza.test", Role.TECHNICIAN),
+    SeedUser("Ana Torres", "admin@traza.test", Role.ADMIN, "+51900000100", True),
+    SeedUser("Bruno Salas", "tecnico1@traza.test", Role.TECHNICIAN, "+51900000011", True),
+    SeedUser("Carla Ríos", "tecnico2@traza.test", Role.TECHNICIAN, "+51900000012", True),
     SeedUser("Diego Paredes", "tecnico3@traza.test", Role.TECHNICIAN, is_active=False),
     SeedUser("Elena Quispe", "solicitante1@traza.test", Role.REQUESTER, "+51900000001", True),
     SeedUser("Fernando Huamán", "solicitante2@traza.test", Role.REQUESTER, "+51900000002", True),
