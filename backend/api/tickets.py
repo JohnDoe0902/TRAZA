@@ -7,6 +7,7 @@ from backend.models.enums import ConfirmationSource, EventType, Priority, Ticket
 from backend.repositories import event_repository
 from backend.schemas.ticket import (
     AssignIn,
+    ClassificationIn,
     ConfirmIn,
     ConfirmOut,
     EventOut,
@@ -17,6 +18,7 @@ from backend.schemas.ticket import (
 )
 from backend.services import (
     assignment_service,
+    classification_service,
     confirmation_service,
     ticket_service,
 )
@@ -54,6 +56,24 @@ def list_events(
     ticket = ticket_service.get_ticket_for_user(db, user, code)
     events = event_repository.list_for_ticket(db, ticket.id, event_type=type)
     return [EventOut.model_validate(event) for event in events]
+
+
+@router.post("/{code}/classification", response_model=TicketOut)
+def validate_classification(
+    code: str, payload: ClassificationIn, user: CurrentUser, db: DbSession
+) -> TicketOut:
+    """El admin confirma o corrige la clasificación (RN-04)."""
+    ticket = ticket_service.get_ticket_for_user(db, user, code)
+    classification_service.validate_classification(
+        db,
+        ticket,
+        user,
+        category=payload.category,
+        impact=payload.impact,
+        urgency=payload.urgency,
+        expected_version=payload.version,
+    )
+    return TicketOut.model_validate(ticket)
 
 
 @router.post("/{code}/assign", response_model=TicketOut)

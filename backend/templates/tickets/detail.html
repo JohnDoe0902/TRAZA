@@ -111,8 +111,48 @@
         {% if ticket.review_required %}
         <div class="alert alert-warning small py-2 mt-3 mb-0">Requiere revisión del administrador: no se asigna automáticamente.</div>
         {% endif %}
+        {% if classification %}
+        <p class="small text-body-secondary mt-3 mb-0">
+          {% if classification.provider == "manual" %}Validada por el administrador.
+          {% else %}Sugerida por: {{ classification.provider }}{% if classification.model_version %} ({{ classification.model_version }}){% endif %}{% if classification.confidence is not none %} · confianza {{ classification.confidence }}{% endif %}.{% endif %}
+          {% if classification.rationale %}<br>«{{ classification.rationale }}»{% endif %}
+        </p>
+        {% endif %}
       </div>
     </div>
+
+    {% if actions.can_validate_classification %}
+    <div class="card shadow-sm mb-4 {% if ticket.review_required %}border-warning{% endif %}">
+      <div class="card-body">
+        <h2 class="h6 mb-1">Validar clasificación</h2>
+        <p class="small text-body-secondary">Confirma o corrige la sugerencia. La prioridad la recalcula la matriz.</p>
+        <form method="post" action="/tickets/{{ ticket.public_code }}/clasificacion">
+          <input type="hidden" name="version" value="{{ ticket.version }}">
+          <label for="category" class="form-label small mb-1">Categoría</label>
+          <select id="category" name="category" class="form-select form-select-sm mb-2" required>
+            {% for value, label in CATEGORY_LABELS.items() %}
+            <option value="{{ value }}" {% if ticket.category == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <label for="impact" class="form-label small mb-1">Impacto</label>
+          <select id="impact" name="impact" class="form-select form-select-sm mb-2" required>
+            {% for value, label in IMPACT_LABELS.items() %}
+            <option value="{{ value }}" {% if ticket.impact == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <label for="urgency" class="form-label small mb-1">Urgencia</label>
+          <select id="urgency" name="urgency" class="form-select form-select-sm mb-3" required>
+            {% for value, label in URGENCY_LABELS.items() %}
+            <option value="{{ value }}" {% if ticket.urgency == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-sm {% if ticket.review_required %}btn-warning{% else %}btn-outline-primary{% endif %}">
+            {% if ticket.review_required %}Validar y liberar asignación{% else %}Guardar clasificación{% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
 
     <div class="card shadow-sm mb-4">
       <div class="card-body">

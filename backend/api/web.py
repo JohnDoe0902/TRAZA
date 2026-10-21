@@ -13,6 +13,7 @@ from backend.api.deps import CurrentUser, DbSession, OptionalUser
 from backend.core.errors import (
     BusinessRuleViolation,
     ConcurrencyConflict,
+    InvalidState,
     InvalidTransition,
     NotAuthenticated,
 )
@@ -20,18 +21,22 @@ from backend.core.permissions import ensure_role
 from backend.core.security import SESSION_USER_KEY
 from backend.core.templating import templates
 from backend.models.enums import (
+    Category,
     ConfirmationAnswer,
     ConfirmationSource,
+    Impact,
     Priority,
     Role,
     TicketStatus,
+    Urgency,
 )
-from backend.repositories import event_repository, user_repository
+from backend.repositories import classification_repository, event_repository, user_repository
 from backend.schemas.errors import field_errors_es
 from backend.schemas.ticket import ResolveIn, TicketCreate
 from backend.services import (
     assignment_service,
     auth_service,
+    classification_service,
     confirmation_service,
     simulator_service,
     ticket_service,
@@ -41,7 +46,7 @@ from backend.services.confirmation_service import AnswerOutcome
 router = APIRouter(include_in_schema=False)
 
 # Errores de una acción que se muestran como aviso en la misma página (no como página de error).
-RECOVERABLE_ERRORS = (BusinessRuleViolation, ConcurrencyConflict, InvalidTransition)
+RECOVERABLE_ERRORS = (BusinessRuleViolation, ConcurrencyConflict, InvalidState, InvalidTransition)
 
 OUTCOME_MESSAGES = {
     AnswerOutcome.CLOSED: ("success", "Gracias por confirmar. El ticket quedó cerrado."),
@@ -118,11 +123,13 @@ def tickets_page(
     db: DbSession,
     estado: str | None = None,
     prioridad: str | None = None,
+    revision: str | None = None,
 ) -> Response:
     status_filter = _parse_enum(TicketStatus, estado)
     priority_filter = _parse_enum(Priority, prioridad)
+    review_filter = True if revision == "1" else None
     tickets = ticket_service.list_tickets_for_user(
-        db, user, status=status_filter, priority=priority_filter
+        db, user, status=status_filter, priority=priority_filter, review_required=review_filter
     )
     return templates.TemplateResponse(
         request,
@@ -132,6 +139,7 @@ def tickets_page(
             "tickets": tickets,
             "status_filter": status_filter,
             "priority_filter": priority_filter,
+            "review_filter": review_filter,
         },
     )
 
@@ -188,9 +196,42 @@ def ticket_detail_page(request: Request, code: str, user: CurrentUser, db: DbSes
             "technicians": (
                 user_repository.list_active_technicians(db) if actions.can_assign else []
             ),
+            "classification": (
+                classification_repository.latest_for_ticket(db, ticket.id)
+                if user.role == Role.ADMIN
+                else None
+            ),
             "flash": _pop_flash(request),
         },
     )
+
+
+@router.post("/tickets/{code}/clasificacion")
+def classification_submit(
+    request: Request,
+    code: str,
+    user: CurrentUser,
+    db: DbSession,
+    category: Annotated[Category, Form()],
+    impact: Annotated[Impact, Form()],
+    urgency: Annotated[Urgency, Form()],
+    version: Annotated[int | None, Form()] = None,
+) -> RedirectResponse:
+    ticket = ticket_service.get_ticket_for_user(db, user, code)
+    try:
+        classification_service.validate_classification(
+            db,
+            ticket,
+            user,
+            category=category,
+            impact=impact,
+            urgency=urgency,
+            expected_version=version,
+        )
+        _flash(request, "success", "Clasificación validada. La prioridad se recalculó.")
+    except RECOVERABLE_ERRORS as exc:
+        _flash(request, "danger", exc.message)
+    return _redirect(f"/tickets/{code}")
 
 
 @router.post("/tickets/{code}/asignar")

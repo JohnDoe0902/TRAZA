@@ -2,7 +2,11 @@
 
 import secrets
 from dataclasses import dataclass
+from types import SimpleNamespace
+from typing import Any
 
+import httpx2
+import openai
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -166,3 +170,55 @@ def fake_providers(**overrides: object) -> Providers:
     }
     values.update(overrides)
     return Providers(**values)  # type: ignore[arg-type]
+
+
+# --- Cliente falso de OpenAI: imita `client.responses.parse(...)` sin red -------------------
+
+OPENAI_URL = "https://api.openai.com/v1/responses"
+
+
+class FakeOpenAIClient:
+    """Devuelve `parsed` (o lanza `error`) y guarda los argumentos de cada llamada."""
+
+    def __init__(
+        self, *, parsed: Any = None, error: Exception | None = None, model: str = "gpt-falso-1"
+    ) -> None:
+        self.parsed = parsed
+        self.error = error
+        self.model = model
+        self.calls: list[dict[str, Any]] = []
+        self.responses = SimpleNamespace(parse=self._parse)
+
+    def _parse(self, **kwargs: Any) -> SimpleNamespace:
+        self.calls.append(kwargs)
+        if self.error is not None:
+            raise self.error
+        return SimpleNamespace(output_parsed=self.parsed, model=self.model)
+
+
+def openai_timeout() -> openai.APITimeoutError:
+    return openai.APITimeoutError(request=httpx2.Request("POST", OPENAI_URL))
+
+
+def openai_server_error() -> openai.InternalServerError:
+    request = httpx2.Request("POST", OPENAI_URL)
+    return openai.InternalServerError(
+        "Error del servidor", response=httpx2.Response(500, request=request), body=None
+    )
+
+
+class FakeComposer:
+    """Redactor externo falso: devuelve `text` o lanza `error`."""
+
+    name = "openai"
+
+    def __init__(self, text: str = "", error: Exception | None = None) -> None:
+        self.text = text
+        self.error = error
+        self.requests: list[Any] = []
+
+    def compose(self, request: Any) -> str:
+        self.requests.append(request)
+        if self.error is not None:
+            raise self.error
+        return self.text.replace("{codigo}", request.ticket_code)

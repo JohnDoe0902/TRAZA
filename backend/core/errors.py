@@ -40,6 +40,13 @@ class InvalidTransition(DomainError):
     default_message = "El cambio de estado solicitado no está permitido."
 
 
+class InvalidState(DomainError):
+    """La operación no aplica al estado actual del ticket (no es un cambio de estado)."""
+
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "La operación no está permitida en el estado actual del ticket."
+
+
 class ConcurrencyConflict(DomainError):
     status_code = status.HTTP_409_CONFLICT
     default_message = "El ticket fue modificado por otra persona. Recarga e inténtalo de nuevo."

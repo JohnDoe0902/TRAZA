@@ -33,6 +33,7 @@ def list_tickets(
     technician_id: int | None = None,
     status: TicketStatus | None = None,
     priority: Priority | None = None,
+    review_required: bool | None = None,
 ) -> Sequence[Ticket]:
     query = select(Ticket)
     if requester_id is not None:
@@ -43,4 +44,6 @@ def list_tickets(
         query = query.where(Ticket.status == status)
     if priority is not None:
         query = query.where(Ticket.priority == priority)
+    if review_required is not None:
+        query = query.where(Ticket.review_required.is_(review_required))
     return db.scalars(query.order_by(Ticket.created_at.desc(), Ticket.id.desc())).all()

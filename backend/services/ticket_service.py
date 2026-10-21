@@ -234,6 +234,7 @@ def list_tickets_for_user(
     *,
     status: TicketStatus | None = None,
     priority: Priority | None = None,
+    review_required: bool | None = None,
 ) -> Sequence[Ticket]:
     """Lista según el rol (RF-04): solicitante, los suyos; técnico, asignados; admin, todos."""
     scope = ticket_scope_for(user)
@@ -243,6 +244,7 @@ def list_tickets_for_user(
         technician_id=scope.technician_id,
         status=status,
         priority=priority,
+        review_required=review_required,
     )
 
 
@@ -350,6 +352,7 @@ class TicketActions:
     can_start: bool
     can_resolve: bool
     can_confirm: bool
+    can_validate_classification: bool
 
 
 def available_actions(ticket: Ticket, user: User) -> TicketActions:
@@ -360,4 +363,6 @@ def available_actions(ticket: Ticket, user: User) -> TicketActions:
         can_start=is_transition_allowed(ticket, TicketStatus.EN_PROCESO, user),
         can_resolve=is_transition_allowed(ticket, TicketStatus.PENDIENTE_CONFIRMACION, user),
         can_confirm=is_transition_allowed(ticket, TicketStatus.CERRADO, user),
+        can_validate_classification=user.role == Role.ADMIN
+        and ticket.status != TicketStatus.CERRADO,
     )

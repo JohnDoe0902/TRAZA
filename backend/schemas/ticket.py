@@ -76,6 +76,14 @@ class ResolveIn(VersionIn):
     resolution_text: str = Field(min_length=10, max_length=2000)
 
 
+class ClassificationIn(VersionIn):
+    """Clasificación confirmada o corregida por el admin; la prioridad la calcula la matriz."""
+
+    category: Category
+    impact: Impact
+    urgency: Urgency
+
+
 class ConfirmIn(BaseModel):
     answer: ConfirmationAnswer
 

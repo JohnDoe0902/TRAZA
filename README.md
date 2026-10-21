@@ -106,6 +106,30 @@ Tras el seed, una pasada del worker clasifica TRZ-0001 a TRZ-0005 como en la sec
 
 Ningún mensaje sale a la red: el canal es el simulador (`NOTIFICATION_PROVIDER=simulated`) y el clasificador es el mock (`CLASSIFIER_PROVIDER=mock`).
 
+Los tickets de seguridad (como TRZ-0005) quedan en **Requiere revisión**: el administrador los valida o corrige desde la tarjeta **Validar clasificación** del detalle, y recién entonces se asignan automáticamente.
+
+## Usar GPT real (opcional)
+
+Por defecto TRAZA clasifica con el mock y redacta con plantillas. Para usar la API de OpenAI, completa en `.env`:
+
+```dotenv
+CLASSIFIER_PROVIDER=openai     # clasificación con GPT (si falla, respaldo por reglas)
+MESSAGE_COMPOSER=openai        # redacción con GPT (si falla o no pasa la validación, plantilla)
+OPENAI_API_KEY=...             # tu clave; nunca la subas al repositorio
+OPENAI_MODEL=...               # el modelo que elija el grupo
+OPENAI_TIMEOUT_SECONDS=10
+```
+
+- Si eliges `openai` y falta la clave o el modelo, el worker no arranca y explica qué falta.
+- A GPT solo se envían título, descripción y ubicación, con correos y números largos reemplazados por `[correo]` y `[número]`. Nunca nombres ni teléfonos.
+- La prioridad siempre la calcula la matriz de la especificación; GPT solo sugiere categoría, impacto y urgencia.
+
+Para comprobar la configuración con los 5 textos del seed (consume créditos si usas OpenAI):
+
+```bash
+python -m backend.scripts.try_classifier
+```
+
 ## Pruebas y calidad
 
 Las pruebas usan la base `traza_test` (variable `TEST_DATABASE_URL`) y aplican las migraciones automáticamente al empezar. Cada prueba corre en una transacción que se revierte al final. Nunca llaman a OpenAI ni a WhatsApp reales.
@@ -128,11 +152,11 @@ backend/
   schemas/         # esquemas Pydantic
   repositories/    # acceso a datos
   services/        # lógica de negocio
-  integrations/    # adaptadores: clasificadores (mock, reglas) y WhatsApp simulado
+  integrations/    # adaptadores: OpenAI, clasificadores mock y por reglas, WhatsApp simulado
   workers/         # worker de outbox_jobs
   templates/       # plantillas Jinja2
   static/          # CSS propio
-  scripts/         # seed
+  scripts/         # seed y prueba manual del clasificador
 migrations/        # Alembic
 tests/             # unit, integration, acceptance
 docs/              # especificación, decisiones
@@ -143,4 +167,6 @@ docs/              # especificación, decisiones
 - Fase 1 (Núcleo): login con roles, alta y listado de tickets con código único, evento `TICKET_CREATED` y trabajo en `outbox_jobs`.
 - Fase 2 (Control): máquina de estados, asignación manual y automática, bitácora en el detalle, matriz de prioridad, clasificador mock y por reglas con fallback, worker de outbox con reintentos, notificaciones simuladas, confirmación por web y simulador.
 
-Pendiente: GPT real y validación de clasificación por el admin (Fase 3), recordatorios, plazos y webhook de WhatsApp (Fase 4), panel de monitoreo (Fase 5).
+- Fase 3 (IA y mensajes): `OpenAIProvider` con salida estructurada y respaldo por reglas, validación de la clasificación por el administrador y redacción de mensajes con GPT validada antes de enviarse.
+
+Pendiente: recordatorios, plazos y webhook de WhatsApp (Fase 4), panel de monitoreo (Fase 5).
