@@ -127,6 +127,18 @@ def local_datetime(value: datetime | None, fmt: str = "%d/%m/%Y %H:%M") -> str:
     return value.astimezone(ZoneInfo(get_settings().timezone)).strftime(fmt)
 
 
+def _classification_summary(values: dict) -> str:
+    """Resumen como «Seguridad · individual · alta → prioridad alta» o «sin clasificar»."""
+    if not values.get("category"):
+        return "sin clasificar"
+    return (
+        f"{CATEGORY_LABELS[Category(values['category'])]} · "
+        f"{IMPACT_LABELS[Impact(values['impact'])].lower()} · "
+        f"{URGENCY_LABELS[Urgency(values['urgency'])].lower()} → "
+        f"prioridad {PRIORITY_LABELS[Priority(values['priority'])].lower()}"
+    )
+
+
 def describe_event(event: TicketEvent, users: dict[int, User]) -> str:
     """Detalle legible de un evento para la línea de tiempo."""
     details = event.safe_details_json or {}
@@ -154,6 +166,11 @@ def describe_event(event: TicketEvent, users: dict[int, User]) -> str:
             return text
         case EventType.CLASSIFICATION_FALLBACK:
             return FALLBACK_REASONS.get(details.get("reason"), str(details.get("reason")))
+        case EventType.CLASSIFICATION_VALIDATED:
+            return (
+                f"Antes: {_classification_summary(details.get('previous') or {})}. "
+                f"Ahora: {_classification_summary(details.get('new') or {})}"
+            )
         case EventType.TICKET_ASSIGNED:
             return f"{name(details.get('technician_id'))}. Motivo: {details.get('reason', '—')}"
         case EventType.RESOLUTION_PROPOSED:
@@ -198,5 +215,8 @@ templates.env.filters["message_type_label"] = _label(MESSAGE_TYPE_LABELS)
 templates.env.filters["notification_status_label"] = _label(NOTIFICATION_STATUS_LABELS)
 templates.env.globals["Role"] = Role
 templates.env.globals["PRIORITY_LABELS"] = PRIORITY_LABELS
+templates.env.globals["CATEGORY_LABELS"] = CATEGORY_LABELS
+templates.env.globals["IMPACT_LABELS"] = IMPACT_LABELS
+templates.env.globals["URGENCY_LABELS"] = URGENCY_LABELS
 templates.env.globals["describe_event"] = describe_event
 templates.env.globals["SIMULATOR_ENABLED"] = get_settings().is_development
