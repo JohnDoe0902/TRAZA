@@ -95,3 +95,35 @@ Se distinguen en `DUPLICATE_ANSWER_IGNORED.reason`: `duplicate` (mismo `provider
 
 ### D-30 · Ciclo de confirmación
 `confirmation_round = reopen_count + 1`: la primera solución es la ronda 1 y cada reapertura abre una ronda nueva.
+
+## Fase 3 — IA y mensajes
+
+### D-31 · SDK oficial de OpenAI con salida estructurada
+`openai==3.35.1`, API de Responses (`client.responses.parse`) con un modelo Pydantic propio (`OpenAIClassificationOutput`) que el SDK convierte en JSON Schema estricto: todos los campos obligatorios, sin campos extra y sin `priority`. La respuesta se vuelve a validar contra el esquema 13.1 (`ClassificationResult`). Se envía con `store=False` y un límite de 400 tokens de salida.
+
+### D-32 · Sin reintentos dentro del cliente
+`max_retries=0` y `timeout=OPENAI_TIMEOUT_SECONDS`. Si OpenAI falla, el respaldo por reglas es inmediato (RN-05); reintentar dentro del cliente solo alargaría la espera del worker.
+
+### D-33 · Mapeo de fallas al motivo del fallback
+`APITimeoutError` → `timeout`; respuesta vacía o rechazada (`ProviderOutputError`) o fuera de esquema (`ValidationError`) → `invalid_output`; cualquier otro error (HTTP, conexión, autenticación) → `provider_error`.
+
+### D-34 · Datos personales enmascarados antes de enviar a GPT
+Además de no enviar datos del usuario (RN-14), el texto que escribe el solicitante pasa por `redact_personal_data`: correos → `[correo]` y secuencias de 7 o más dígitos (teléfonos, DNI) → `[número]`. Los nombres propios escritos en la descripción no se pueden detectar con reglas simples; queda como riesgo conocido.
+
+### D-35 · GPT nunca recibe nombres (conflicto 13.2 vs RN-14)
+La sección 13.2 permite enviar el nombre de pila "si está autorizado"; RN-14 prohíbe enviar nombres a GPT. Se aplica la regla más estricta: el redactor recibe el propósito, el código, el estado y el mensaje base **sin** nombre. El saludo con nombre queda solo en las plantillas.
+
+### D-36 · OpenAI mal configurado no arranca
+Con `CLASSIFIER_PROVIDER=openai` o `MESSAGE_COMPOSER=openai` y sin `OPENAI_API_KEY` u `OPENAI_MODEL`, el worker termina con código 2 y un mensaje claro. No se cambia a reglas en silencio, para que un error de configuración no pase desapercibido en la demo.
+
+### D-37 · Redacción en el worker, solo en el primer intento
+El cuerpo guardado al encolar es la plantilla (sin llamadas externas en la transacción). Con `MESSAGE_COMPOSER=openai`, el worker redacta justo antes del primer envío; si el redactor falla o el texto no pasa `validate_message`, se envía la plantilla. Un reintento reenvía el texto ya guardado sin volver a llamar a GPT. `NOTIFICATION_SENT` registra `composer` y, si hubo respaldo, `composer_fallback` con el motivo.
+
+### D-38 · Reglas del validador de mensajes (13.2)
+Rechaza: vacío, más de 500 caracteres, sin el código del ticket, las palabras "cerrado/a" o "resuelto/a" si el ticket no está `CERRADO` (sin distinguir mayúsculas ni tildes), URLs (`http`, `www.` o dominios como `.com`, `.pe`, `.edu`), correos y secuencias de 7 o más dígitos. Las 8 plantillas pasan el validador en su estado natural.
+
+### D-39 · Validación de la clasificación por el administrador
+`POST /api/tickets/{code}/classification` (y el formulario del detalle) crea una fila `classifications` con `provider = manual` y `validated_by`, recalcula la prioridad con la matriz, deja `review_required = false` y registra `CLASSIFICATION_VALIDATED` con los valores anteriores y nuevos. Si el ticket sigue `PENDIENTE` y sin técnico, encola `AUTO_ASSIGN`. Se permite en cualquier estado salvo `CERRADO` (409, error `InvalidState`). Si el admin clasifica antes que el worker, el trabajo de clasificación pendiente ya no hace nada.
+
+### D-40 · Prueba manual con la API real
+`python -m backend.scripts.try_classifier` clasifica los 5 textos del seed con el proveedor configurado y los compara con la sección 19. Es la evidencia de la demo con GPT real; nunca corre en `pytest`, y `tests/conftest.py` bloquea cualquier llamada real a la API de OpenAI.
