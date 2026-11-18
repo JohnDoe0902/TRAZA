@@ -163,3 +163,6 @@ Con la plantilla A9 de la migración 0003, un plazo vencido de prioridad MEDIA o
 
 ### D-52 · Diseño de los avisos en Telegram
 El texto base de cada aviso sigue siendo la plantilla de la sección 16 (la usan el simulador, el validador y la auditoría). Solo el canal de Telegram le da presentación en `integrations/telegram_format.py`: título con emoji según el tipo, ficha con ticket, asunto y estado, el texto base con el código en negrita, una indicación si hace falta (por ejemplo en A3) y un pie. Va en HTML de Telegram y todo lo que viene del usuario se escapa. Como el estado va en la ficha, se quita la frase "Estado: X." del texto base solo en Telegram. Las respuestas propias del bot (vincular, ayuda, botones) también se ordenaron.
+
+### D-53 · A6 a los administradores cuando un aviso falla del todo
+Cuando un `SEND_NOTIFICATION` agota sus intentos, la notificación queda `FAILED` y se encola A6 ("No se pudo enviar el mensaje del ticket {codigo}. Intento {n}.") para cada administrador activo, en la misma transacción. Si lo que falló ya era un A6 no se manda otro, para que una caída del canal no genere avisos sin fin. El ticket sigue su curso normal (CP-10). Las pruebas de la guía quedan con su nombre: `test_cp10_...` y `test_cp11_...`.

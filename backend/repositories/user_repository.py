@@ -56,3 +56,8 @@ def get_by_telegram_link_token(db: Session, token: str) -> User | None:
 
 def get_by_telegram_chat_id(db: Session, chat_id: int) -> User | None:
     return db.scalar(select(User).where(User.telegram_chat_id == chat_id))
+
+
+def list_active_admins(db: Session) -> Sequence[User]:
+    query = select(User).where(User.role == Role.ADMIN, User.is_active.is_(True)).order_by(User.id)
+    return db.scalars(query).all()
