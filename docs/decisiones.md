@@ -145,3 +145,6 @@ El ciclo vigente es `reopen_count + 1`, igual que en `confirmations.confirmation
 
 ### D-46 · Migración 0003 escrita por B, pendiente del visto bueno de A
 La escribió el integrante B para no frenar su frente y A la revisa en el PR. Agrega a `users` el `telegram_chat_id` (BIGINT, único) y un token de vinculación de un solo uso con vencimiento (`telegram_link_token`, `telegram_link_expires_at`). Crea `worker_heartbeats` con una fila por worker (`worker_id` = equipo:pid). Amplía los CHECK para aceptar `TELEGRAM` en `notifications.channel` y `confirmations.source`, y `A9` en `notifications.message_type`. Plantilla A9: "Recordatorio: {codigo} superó su plazo de primera atención. Revísalo en tu bandeja." `whatsapp_opt_in` se mantiene por ahora; se decide su reemplazo al conectar Telegram.
+
+### D-47 · Latido del worker en /health
+En cada ciclo el worker hace un upsert en `worker_heartbeats` con su `worker_id` (equipo:pid). `/health` toma el latido más reciente: hasta 60 s → `ok`, más viejo → `down`, sin filas → `never_seen`. El código HTTP depende solo de la base (200 o 503): con el worker caído la web sigue registrando tickets (regla 5), así que responde 200 con `"status": "degraded"`. Si el latido falla, el worker lo registra en el log y sigue con la cola.

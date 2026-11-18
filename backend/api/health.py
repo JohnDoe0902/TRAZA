@@ -10,6 +10,5 @@ router = APIRouter(tags=["health"])
 @router.get("/health")
 def health(db: DbSession) -> JSONResponse:
     report = health_service.check(db)
-    # 503 avisa a quien vigila el servicio que algo no anda bien
-    status_code = 200 if report.is_healthy else 503
-    return JSONResponse(status_code=status_code, content=report.as_dict())
+    # 503 solo si la base cae. Con el worker caído la web sigue registrando tickets
+    return JSONResponse(status_code=report.http_status, content=report.as_dict())
