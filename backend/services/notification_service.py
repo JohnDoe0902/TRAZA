@@ -54,6 +54,7 @@ def enqueue(
     recipient: User,
     message_type: MessageType,
     correlation_id: uuid.UUID,
+    attempt: int | None = None,
 ) -> Notification | None:
     """Crea la notificación (PENDING) y su trabajo SEND_NOTIFICATION, sin confirmar.
 
@@ -71,7 +72,9 @@ def enqueue(
     body = message_service.compose(
         message_type,
         message_service.MessageContext(
-            code=ticket.public_code, first_name=message_service.first_name(recipient.full_name)
+            code=ticket.public_code,
+            first_name=message_service.first_name(recipient.full_name),
+            attempt=attempt,
         ),
     )
     notification = notification_repository.add(
@@ -196,8 +199,30 @@ def _compose(
     return text, {"composer": composer.name}
 
 
-def mark_failed(db: Session, notification_id: int) -> None:
-    """Agotados los reintentos, la notificación queda FAILED (nunca 'entregada')."""
+def mark_failed(db: Session, notification_id: int, correlation_id: uuid.UUID) -> None:
+    """Agotados los reintentos, la notificación queda FAILED (nunca 'entregada').
+
+    Además avisa a los administradores con A6 para que revisen qué pasó.
+    """
     notification = notification_repository.get(db, notification_id)
-    if notification is not None and notification.status in DELIVERABLE_STATUSES:
-        notification.status = NotificationStatus.FAILED
+    if notification is None or notification.status not in DELIVERABLE_STATUSES:
+        return
+    notification.status = NotificationStatus.FAILED
+    # Si lo que falló ya era un A6 no mandamos otro. Si no, una caída del canal
+    # generaría avisos de avisos sin fin
+    if notification.message_type != MessageType.A6:
+        _alert_admins(db, notification, correlation_id)
+
+
+def _alert_admins(db: Session, failed: Notification, correlation_id: uuid.UUID) -> None:
+    ticket = db.get(Ticket, failed.ticket_id)
+    assert ticket is not None
+    for admin in user_repository.list_active_admins(db):
+        enqueue(
+            db,
+            ticket=ticket,
+            recipient=admin,
+            message_type=MessageType.A6,
+            correlation_id=correlation_id,
+            attempt=failed.attempt_count,
+        )
