@@ -55,6 +55,8 @@ def use_telegram(monkeypatch: pytest.MonkeyPatch, bot_username: str = "traza_pru
     settings = get_settings()
     monkeypatch.setattr(settings, "notification_provider", "telegram")
     monkeypatch.setattr(settings, "telegram_bot_username", bot_username)
+    # Sin token la fábrica no le pregunta nada al Telegram real y usa el nombre de arriba
+    monkeypatch.setattr(settings, "telegram_bot_token", None)
 
 
 def text_update(chat_id: int, text: str, chat_type: str = "private") -> dict[str, Any]:
