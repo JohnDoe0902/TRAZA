@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     classifier_provider: Literal["mock", "rules", "openai"] = "mock"
     message_composer: Literal["templates", "openai"] = "templates"
-    notification_provider: Literal["simulated", "whatsapp"] = "simulated"
+    notification_provider: Literal["simulated", "whatsapp", "telegram"] = "simulated"
 
     openai_api_key: SecretStr | None = None
     openai_model: str | None = None

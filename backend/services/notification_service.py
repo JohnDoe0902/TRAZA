@@ -1,6 +1,7 @@
 """Notificaciones: se encolan en la transacción del cambio y el worker las entrega.
 
-- Solo se notifica a usuarios con `whatsapp_opt_in` (RN-14).
+- Solo se notifica a quien puede recibir por el canal activo (RN-14): con Telegram, a quien
+  vinculó su cuenta; con el simulador, a quien tiene `whatsapp_opt_in`.
 - Cada notificación tiene `idempotency_key` y estado propio (RN-09).
 - El estado solo avanza con la respuesta del proveedor o del simulador (regla 9).
 - Si hay un redactor externo (GPT), redacta justo antes del primer envío; si falla o su texto
@@ -31,9 +32,19 @@ DELIVERABLE_STATUSES = (NotificationStatus.PENDING, NotificationStatus.RETRYING)
 
 
 def current_channel() -> NotificationChannel:
-    if get_settings().notification_provider == "whatsapp":
+    provider = get_settings().notification_provider
+    if provider == "telegram":
+        return NotificationChannel.TELEGRAM
+    if provider == "whatsapp":
         return NotificationChannel.WHATSAPP
     return NotificationChannel.SIMULATED
+
+
+def can_receive(recipient: User, channel: NotificationChannel) -> bool:
+    """Por Telegram solo llega a quien vinculó su chat. Los demás canales usan el opt-in."""
+    if channel == NotificationChannel.TELEGRAM:
+        return recipient.telegram_chat_id is not None
+    return recipient.whatsapp_opt_in
 
 
 def enqueue(
@@ -46,9 +57,10 @@ def enqueue(
 ) -> Notification | None:
     """Crea la notificación (PENDING) y su trabajo SEND_NOTIFICATION, sin confirmar.
 
-    Devuelve None si el destinatario no aceptó WhatsApp.
+    Devuelve None si el destinatario no puede recibir por el canal activo.
     """
-    if not recipient.whatsapp_opt_in:
+    channel = current_channel()
+    if not can_receive(recipient, channel):
         return None
 
     key = f"{ticket.id}:{message_type.value}:{recipient.id}:{correlation_id}"
@@ -66,7 +78,7 @@ def enqueue(
         db,
         Notification(
             ticket_id=ticket.id,
-            channel=current_channel(),
+            channel=channel,
             recipient_user_id=recipient.id,
             message_type=message_type,
             body=body,
@@ -115,6 +127,7 @@ def deliver(
         message_type=notification.message_type,
         body=notification.body,
         phone_e164=recipient.phone_e164 if recipient.whatsapp_opt_in else None,
+        telegram_chat_id=recipient.telegram_chat_id,
     )
     try:
         result = provider.send(message)
