@@ -127,3 +127,15 @@ Rechaza: vacío, más de 500 caracteres, sin el código del ticket, las palabras
 
 ### D-40 · Prueba manual con la API real
 `python -m backend.scripts.try_classifier` clasifica los 5 textos del seed con el proveedor configurado y los compara con la sección 19. Es la evidencia de la demo con GPT real; nunca corre en `pytest`, y `tests/conftest.py` bloquea cualquier llamada real a la API de OpenAI.
+
+### D-41 · Telegram como canal y Gemini como IA
+El equipo acordó usar un bot de Telegram para avisos y confirmación Sí/No, en lugar de WhatsApp Cloud API (exige RUC y cobra) y del correo de la guía. Para la IA se usará la API gratuita de Gemini en lugar de GPT. Telegram será un adaptador más (`NotificationProvider`), con el simulador como opción por defecto y en las pruebas. Pendiente: actualizar `docs/especificacion.md` y `CLAUDE.md` con acuerdo de los tres.
+
+### D-42 · Cómo se mide el plazo de primera atención
+El plazo (tabla 7.2) corre desde `tickets.created_at`, en minutos corridos, y solo para tickets que ya tienen prioridad. Se cumple con la primera atención (`first_response_at`, paso a `EN_PROCESO`). `SLA_BREACHED` se registra una sola vez por ticket (`sla_breached_at`); si el administrador cambia la prioridad después, no se vuelve a registrar. CRITICA y ALTA → `ADMIN_ALERT`. MEDIA y BAJA → recordatorio al técnico; si todavía no hay técnico, `ADMIN_ALERT`.
+
+### D-43 · Recordatorio al técnico sin mensaje por ahora
+No existe una plantilla de "recordatorio al técnico" y agregar un tipo de mensaje cambia el CHECK de `notifications.message_type` (migración de A). Mientras tanto, el recordatorio queda como `SLA_BREACHED` con `action = technician_reminder` y el `technician_id`, visible en la línea de tiempo. Cuando A agregue la plantilla A9, se enviará también el mensaje.
+
+### D-44 · Recordatorio de confirmación una vez por ciclo
+El ciclo vigente es `reopen_count + 1`, igual que en `confirmations.confirmation_round`. El recordatorio sale si pasaron `REMINDER_AFTER_MINUTES` desde el `CONFIRMATION_REQUESTED` de ese ciclo, no hay respuesta y no se registró ya un `CONFIRMATION_REMINDER` con ese `confirmation_round`. Envía A7 al solicitante y registra `CONFIRMATION_REMINDER` y `ADMIN_ALERT`. Nunca cambia el estado (regla 1). Cada ticket se revisa con su fila bloqueada (`FOR UPDATE SKIP LOCKED`), así dos workers no duplican avisos; si la revisión falla, el worker lo registra y sigue con la cola.

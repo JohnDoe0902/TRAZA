@@ -47,3 +47,25 @@ def list_tickets(
     if review_required is not None:
         query = query.where(Ticket.review_required.is_(review_required))
     return db.scalars(query.order_by(Ticket.created_at.desc(), Ticket.id.desc())).all()
+
+
+def list_sla_candidates(db: Session) -> Sequence[Ticket]:
+    """Tickets abiertos con prioridad, sin primera atención y sin plazo vencido registrado."""
+    query = select(Ticket).where(
+        Ticket.priority.is_not(None),
+        Ticket.first_response_at.is_(None),
+        Ticket.sla_breached_at.is_(None),
+        Ticket.status != TicketStatus.CERRADO,
+    )
+    return db.scalars(query.order_by(Ticket.created_at, Ticket.id)).all()
+
+
+def lock_for_update(db: Session, ticket_id: int) -> Ticket | None:
+    """Bloquea la fila del ticket; None si otro proceso ya la tiene (SKIP LOCKED)."""
+    query = (
+        select(Ticket)
+        .where(Ticket.id == ticket_id)
+        .with_for_update(skip_locked=True)
+        .execution_options(populate_existing=True)
+    )
+    return db.scalar(query)

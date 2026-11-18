@@ -34,6 +34,7 @@ from backend.services import (
     classification_service,
     notification_service,
     outbox_service,
+    sla_service,
 )
 
 logger = logging.getLogger("traza.worker")
@@ -106,6 +107,20 @@ def run_job(db: Session, job: OutboxJob, providers: Providers, now: datetime) ->
     return True
 
 
+def run_time_checks(db: Session, now: datetime) -> None:
+    """Plazos y recordatorios (sección 13.5). Si fallan, la cola sigue funcionando."""
+    try:
+        result = sla_service.run_checks(db, now)
+    except Exception as exc:
+        db.rollback()
+        logger.error("Revisión de plazos y recordatorios falló: %s", type(exc).__name__)
+        return
+    if result.sla_breached or result.reminders:
+        logger.info(
+            "Plazos vencidos: %s · recordatorios: %s", result.sla_breached, result.reminders
+        )
+
+
 def process_batch(
     db: Session,
     *,
@@ -113,12 +128,14 @@ def process_batch(
     now: datetime | None = None,
     limit: int = BATCH_SIZE,
 ) -> int:
-    """Un ciclo: recupera abandonados, toma los vencidos y los ejecuta. Devuelve cuántos tomó."""
+    """Un ciclo: recupera abandonados, revisa plazos y recordatorios, toma los trabajos vencidos
+    y los ejecuta. Devuelve cuántos trabajos tomó."""
     providers = providers or Providers()
     now = now or utcnow()
     recovered = outbox_service.recover_stale_jobs(db, now)
     if recovered:
         logger.warning("%s trabajos abandonados volvieron a PENDING", recovered)
+    run_time_checks(db, now)
     jobs = outbox_service.claim_due_jobs(db, now, limit)
     for job in jobs:
         run_job(db, job, providers, now)
