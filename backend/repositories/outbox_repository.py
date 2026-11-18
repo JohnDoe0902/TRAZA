@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from backend.models import OutboxJob
@@ -44,3 +44,9 @@ def release_stale_running(db: Session, started_before: datetime) -> int:
         .execution_options(synchronize_session=False)
     )
     return result.rowcount or 0
+
+
+def count_by_status(db: Session) -> dict[JobStatus, int]:
+    """Cuántos trabajos hay en cada estado. Los estados sin trabajos no aparecen."""
+    query = select(OutboxJob.status, func.count(OutboxJob.id)).group_by(OutboxJob.status)
+    return {status: total for status, total in db.execute(query).all()}
