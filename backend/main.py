@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from backend.api import auth, health, tickets, web
+from backend.api import auth, health, telegram, tickets, web
 from backend.core.config import get_settings
 from backend.core.errors import register_exception_handlers
 
@@ -30,6 +30,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(tickets.router)
     app.include_router(web.router)
+    app.include_router(telegram.router)
     return app
 
 
