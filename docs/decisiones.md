@@ -139,3 +139,6 @@ No existe una plantilla de "recordatorio al técnico" y agregar un tipo de mensa
 
 ### D-44 · Recordatorio de confirmación una vez por ciclo
 El ciclo vigente es `reopen_count + 1`, igual que en `confirmations.confirmation_round`. El recordatorio sale si pasaron `REMINDER_AFTER_MINUTES` desde el `CONFIRMATION_REQUESTED` de ese ciclo, no hay respuesta y no se registró ya un `CONFIRMATION_REMINDER` con ese `confirmation_round`. Envía A7 al solicitante y registra `CONFIRMATION_REMINDER` y `ADMIN_ALERT`. Nunca cambia el estado (regla 1). Cada ticket se revisa con su fila bloqueada (`FOR UPDATE SKIP LOCKED`), así dos workers no duplican avisos; si la revisión falla, el worker lo registra y sigue con la cola.
+
+### D-45 · /health en dos partes
+`/health` ahora lo arma `services/health_service.py` (el router ya no llama al repositorio directo). Devuelve el estado de la base y cuántos trabajos de `outbox_jobs` están `PENDING` y `FAILED`. Responde 200 si la base contesta y 503 con `"status": "degraded"` si no; en ese caso no muestra cifras de la cola. El latido del worker se suma cuando A cree la tabla `worker_heartbeats`.
