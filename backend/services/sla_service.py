@@ -69,22 +69,24 @@ def confirmation_round(ticket: Ticket) -> int:
 
 
 def run_checks(db: Session, now: datetime) -> CheckResult:
-    """Revisa plazos y recordatorios. Repetirlo con la misma hora no duplica nada."""
-    breached = sum(_check_sla(db, ticket.id, now) for ticket in _sla_candidates(db, now))
-    pending = ticket_repository.list_tickets(db, status=TicketStatus.PENDIENTE_CONFIRMACION)
-    reminders = sum(_check_reminder(db, ticket.id, now) for ticket in pending)
+    """Revisa plazos y recordatorios. Repetirlo con la misma hora no duplica nada.
+
+    Corre cada pocos segundos así que primero la base filtra lo que de verdad venció.
+    Si no hay nada son solo dos consultas aunque haya miles de tickets.
+    """
+    overdue = ticket_repository.list_sla_due(db, sla_cutoffs(now))
+    breached = sum(_check_sla(db, ticket.id, now) for ticket in overdue)
+    waiting = ticket_repository.list_reminder_due(db, now - _reminder_delay())
+    reminders = sum(_check_reminder(db, ticket.id, now) for ticket in waiting)
     return CheckResult(sla_breached=breached, reminders=reminders)
 
 
+def sla_cutoffs(now: datetime) -> dict[Priority, datetime]:
+    """Para cada prioridad, un ticket creado antes de esta hora ya venció."""
+    return {priority: now - timedelta(minutes=deadline_minutes(priority)) for priority in Priority}
+
+
 # --- Plazo de primera atención ----------------------------------------------------------------
-
-
-def _sla_candidates(db: Session, now: datetime) -> list[Ticket]:
-    return [
-        ticket
-        for ticket in ticket_repository.list_sla_candidates(db)
-        if (deadline := due_at(ticket)) is not None and deadline <= now
-    ]
 
 
 def _check_sla(db: Session, ticket_id: int, now: datetime) -> bool:

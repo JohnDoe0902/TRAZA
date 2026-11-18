@@ -4,9 +4,11 @@ La hora se controla pasando `now` a los servicios: los tickets y eventos de una 
 en la misma transacción, así que comparten la marca de tiempo de inicio.
 """
 
+from collections.abc import Callable
 from datetime import datetime, timedelta
 
 import pytest
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from backend.models import Ticket
@@ -18,6 +20,7 @@ from backend.models.enums import (
     Priority,
     TicketStatus,
 )
+from backend.repositories import ticket_repository
 from backend.services import sla_service, ticket_service
 from backend.services.uow import atomic
 from backend.workers import process_outbox
@@ -39,6 +42,10 @@ def with_priority(db: Session, ticket: Ticket, priority: Priority) -> Ticket:
     with atomic(db):
         ticket.priority = priority
     return ticket
+
+
+def waiting_tickets(db: Session) -> list[Ticket]:
+    return list(ticket_repository.list_tickets(db, status=TicketStatus.PENDIENTE_CONFIRMACION))
 
 
 def minutes_after(ticket: Ticket, minutes: int) -> datetime:
@@ -233,3 +240,47 @@ def test_si_la_revision_de_plazos_falla_la_cola_sigue(
     assert processed > 0
     db.refresh(ticket)
     assert ticket.priority is not None
+
+
+# --- Rendimiento ------------------------------------------------------------------------------
+
+
+def count_queries(db: Session, action: Callable[[], object]) -> int:
+    statements: list[str] = []
+
+    def record(conn: object, cursor: object, statement: str, *args: object) -> None:
+        statements.append(statement)
+
+    connection = db.connection()
+    event.listen(connection, "before_cursor_execute", record)
+    try:
+        action()
+    finally:
+        event.remove(connection, "before_cursor_execute", record)
+    return len(statements)
+
+
+def test_sin_nada_vencido_la_revision_cuesta_dos_consultas(db: Session, actors: Actors) -> None:
+    # Muchos tickets esperando pero ninguno vencido todavía
+    tickets = [pending_confirmation_ticket(db, actors) for _ in range(15)]
+    for ticket in tickets[:5]:
+        with_priority(db, ticket, Priority.BAJA)
+
+    queries = count_queries(db, lambda: sla_service.run_checks(db, minutes_after(tickets[0], 1)))
+
+    # Una consulta para plazos y otra para recordatorios, sin importar cuántos tickets haya
+    assert queries == 2
+
+
+def test_solo_se_revisan_los_que_vencieron(db: Session, actors: Actors) -> None:
+    due = pending_confirmation_ticket(db, actors)
+    for _ in range(5):
+        pending_confirmation_ticket(db, actors)
+    # Al resto le respondemos para que no esperen recordatorio
+    for ticket in [t for t in waiting_tickets(db) if t.id != due.id]:
+        answer(db, ticket, actors.requester, ConfirmationAnswer.YES)
+
+    result = sla_service.run_checks(db, minutes_after(due, 121))
+
+    assert result.reminders == 1
+    assert reminders_of(db, due) == [1]
