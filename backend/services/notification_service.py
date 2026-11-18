@@ -128,6 +128,8 @@ def deliver(
         body=notification.body,
         phone_e164=recipient.phone_e164 if recipient.whatsapp_opt_in else None,
         telegram_chat_id=recipient.telegram_chat_id,
+        ticket_code=ticket.public_code,
+        ticket_title=ticket.title,
     )
     try:
         result = provider.send(message)

@@ -160,3 +160,6 @@ Un bot no puede escribirle primero a nadie. En `/telegram` la persona pide un en
 
 ### D-51 · El recordatorio al técnico ya se envía (actualiza D-43)
 Con la plantilla A9 de la migración 0003, un plazo vencido de prioridad MEDIA o BAJA con técnico asignado también encola el mensaje A9 al técnico, además del `SLA_BREACHED`. Si el técnico no puede recibir por el canal activo (por ejemplo, no vinculó Telegram), queda solo el evento.
+
+### D-52 · Diseño de los avisos en Telegram
+El texto base de cada aviso sigue siendo la plantilla de la sección 16 (la usan el simulador, el validador y la auditoría). Solo el canal de Telegram le da presentación en `integrations/telegram_format.py`: título con emoji según el tipo, ficha con ticket, asunto y estado, el texto base con el código en negrita, una indicación si hace falta (por ejemplo en A3) y un pie. Va en HTML de Telegram y todo lo que viene del usuario se escapa. Como el estado va en la ficha, se quita la frase "Estado: X." del texto base solo en Telegram. Las respuestas propias del bot (vincular, ayuda, botones) también se ordenaron.
