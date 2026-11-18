@@ -166,3 +166,6 @@ El texto base de cada aviso sigue siendo la plantilla de la sección 16 (la usan
 
 ### D-53 · A6 a los administradores cuando un aviso falla del todo
 Cuando un `SEND_NOTIFICATION` agota sus intentos, la notificación queda `FAILED` y se encola A6 ("No se pudo enviar el mensaje del ticket {codigo}. Intento {n}.") para cada administrador activo, en la misma transacción. Si lo que falló ya era un A6 no se manda otro, para que una caída del canal no genere avisos sin fin. El ticket sigue su curso normal (CP-10). Las pruebas de la guía quedan con su nombre: `test_cp10_...` y `test_cp11_...`.
+
+### D-54 · Plazos y recordatorios filtrados en la base
+`run_checks` corre cada 5 s. Antes traía todos los tickets en espera y leía la bitácora de cada uno. Ahora la base devuelve solo los vencidos: `list_sla_due` arma un corte por prioridad (`now - plazo`) y `list_reminder_due` usa `EXISTS` sobre `ticket_events` (con el índice `ticket_id, created_at` que ya existe) y `confirmations` para la ronda actual. Si nada venció son 2 consultas, sin importar cuántos tickets haya; una prueba lo vigila. Cada ticket vencido se sigue revisando con su fila bloqueada antes de actuar.
