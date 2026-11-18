@@ -82,12 +82,16 @@ def main() -> None:
 
     logger.info("Bot de Telegram escuchando")
     offset: int | None = None
-    while True:
-        try:
-            offset = poll_once(client, offset, LONG_POLL_SECONDS)
-        except TelegramError as exc:
-            logger.warning("Telegram no respondió: %s", exc)
-            time.sleep(PAUSE_AFTER_ERROR_SECONDS)
+    try:
+        while True:
+            try:
+                offset = poll_once(client, offset, LONG_POLL_SECONDS)
+            except TelegramError as exc:
+                logger.warning("Telegram no respondió: %s", exc)
+                time.sleep(PAUSE_AFTER_ERROR_SECONDS)
+    except KeyboardInterrupt:
+        # Ctrl+C. Lo que no confirmamos con el offset vuelve en el próximo arranque
+        logger.info("Bot de Telegram detenido")
 
 
 if __name__ == "__main__":
