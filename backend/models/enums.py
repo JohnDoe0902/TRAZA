@@ -83,6 +83,7 @@ class EventType(StrEnum):
 class NotificationChannel(StrEnum):
     WHATSAPP = "WHATSAPP"
     SIMULATED = "SIMULATED"
+    TELEGRAM = "TELEGRAM"
 
 
 class MessageType(StrEnum):
@@ -94,6 +95,7 @@ class MessageType(StrEnum):
     A6 = "A6"  # Falla de envío (solo admin)
     A7 = "A7"  # Recordatorio
     A8 = "A8"  # Aviso al técnico
+    A9 = "A9"  # Recordatorio al técnico por plazo vencido
 
 
 class NotificationStatus(StrEnum):
@@ -115,6 +117,7 @@ class ConfirmationSource(StrEnum):
     WHATSAPP = "WHATSAPP"
     WEB = "WEB"
     SIMULATOR = "SIMULATOR"
+    TELEGRAM = "TELEGRAM"
 
 
 class JobType(StrEnum):
