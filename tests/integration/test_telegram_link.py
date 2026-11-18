@@ -226,3 +226,29 @@ def test_si_telegram_no_responde_se_usa_el_nombre_del_env(
     monkeypatch.setattr(factory, "_username_from_telegram", caido)
 
     assert factory.telegram_bot_username() == "traza_prueba_bot"
+
+
+# --- Mensajes cuando el Telegram ya está vinculado ------------------------------------------------
+
+
+def test_el_bot_dice_a_que_cuenta_pertenece_el_telegram(db: Session, actors: Actors) -> None:
+    bot = FakeTelegram()
+    telegram_link_service.link_chat(db, token_of(db, actors.requester), CHAT_ID, utcnow())
+
+    # Con el mismo Telegram intenta vincular otra cuenta (lo que pasó en la prueba real)
+    other = text_update(CHAT_ID, f"/start {token_of(db, actors.technician)}")
+    telegram_bot_service.handle_update(db, bot, other, utcnow())
+
+    reply = bot.sent[-1].text
+    assert actors.requester.full_name in reply
+    assert "Desvincular" in reply
+    assert actors.technician.telegram_chat_id is None
+
+
+def test_start_sin_codigo_recuerda_la_cuenta_vinculada(db: Session, actors: Actors) -> None:
+    bot = FakeTelegram()
+    telegram_link_service.link_chat(db, token_of(db, actors.requester), CHAT_ID, utcnow())
+
+    telegram_bot_service.handle_update(db, bot, text_update(CHAT_ID, "/start"), utcnow())
+
+    assert bot.sent[-1].text.startswith("✅ Ya estás vinculado como " + actors.requester.full_name)

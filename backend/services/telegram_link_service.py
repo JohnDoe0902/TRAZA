@@ -53,6 +53,8 @@ class TelegramLink:
 class LinkResult:
     outcome: LinkOutcome
     user: User | None = None
+    # Con CHAT_IN_USE es la cuenta a la que ya pertenece este Telegram
+    owner: User | None = None
 
 
 def is_linked(user: User) -> bool:
@@ -100,7 +102,7 @@ def link_chat(db: Session, token: str, chat_id: int, now: datetime) -> LinkResul
     owner = user_repository.get_by_telegram_chat_id(db, chat_id)
     if owner is not None and owner.id != user.id:
         # Un chat de Telegram es de una sola cuenta. Si no, alguien vería avisos ajenos
-        return LinkResult(LinkOutcome.CHAT_IN_USE, user)
+        return LinkResult(LinkOutcome.CHAT_IN_USE, user, owner=owner)
 
     try:
         with atomic(db):
@@ -111,6 +113,11 @@ def link_chat(db: Session, token: str, chat_id: int, now: datetime) -> LinkResul
         return LinkResult(LinkOutcome.CHAT_IN_USE, user)
     logger.info("Usuario %s vinculó su Telegram", user.id)
     return LinkResult(LinkOutcome.LINKED, user)
+
+
+def linked_user(db: Session, chat_id: int) -> User | None:
+    """La cuenta de TRAZA vinculada a este chat, si hay una."""
+    return user_repository.get_by_telegram_chat_id(db, chat_id)
 
 
 def unlink(db: Session, user: User) -> None:

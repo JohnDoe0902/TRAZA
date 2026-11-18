@@ -24,7 +24,7 @@ from backend.models.enums import ConfirmationSource, MessageType, NotificationCh
 from backend.repositories import notification_repository, ticket_repository, user_repository
 from backend.services import confirmation_service, telegram_link_service
 from backend.services.confirmation_service import AnswerOutcome
-from backend.services.telegram_link_service import LinkOutcome
+from backend.services.telegram_link_service import LinkOutcome, LinkResult
 
 logger = logging.getLogger("traza.telegram")
 
@@ -46,6 +46,19 @@ LINK_REPLIES = {
     LinkOutcome.EXPIRED: "⌛ Ese enlace ya venció. Pide uno nuevo desde TRAZA.",
     LinkOutcome.CHAT_IN_USE: "🚫 Este Telegram ya está vinculado a otra cuenta de TRAZA.",
 }
+
+# Cada Telegram va con una sola cuenta. Al dueño del chat le decimos cuál es y cómo cambiarla
+CHAT_IN_USE_TEXT = (
+    "🚫 Este Telegram ya está vinculado a la cuenta de {owner}.\n\n"
+    "Para usar otra cuenta:\n"
+    "1. Entra a TRAZA con la cuenta de {owner}.\n"
+    "2. Ve a Telegram y pulsa Desvincular.\n"
+    "3. Vuelve a escanear el código con la otra cuenta."
+)
+ALREADY_LINKED_TEXT = (
+    "✅ Ya estás vinculado como {owner}.\n\n"
+    "Aquí te llegarán los avisos de tus solicitudes. No hace falta hacer nada más."
+)
 
 # Estos salen como aviso corto arriba del chat. Telegram los corta a 200 caracteres
 ANSWER_REPLIES = {
@@ -110,10 +123,22 @@ def handle_update(db: Session, bot: TelegramBot, update: dict[str, Any], now: da
 def _handle_message(db: Session, bot: TelegramBot, message: IncomingMessage, now: datetime) -> None:
     command, _, argument = message.text.partition(" ")
     if command != "/start" or not argument.strip():
-        _safe(bot.send_message, message.chat_id, HELP_TEXT)
+        _safe(bot.send_message, message.chat_id, _status_text(db, message.chat_id))
         return
     result = telegram_link_service.link_chat(db, argument.strip(), message.chat_id, now)
-    _safe(bot.send_message, message.chat_id, LINK_REPLIES[result.outcome])
+    _safe(bot.send_message, message.chat_id, _link_reply(result))
+
+
+def _status_text(db: Session, chat_id: int) -> str:
+    """Si el chat ya está vinculado se lo recordamos. Si no, explicamos cómo hacerlo."""
+    owner = telegram_link_service.linked_user(db, chat_id)
+    return ALREADY_LINKED_TEXT.format(owner=owner.full_name) if owner else HELP_TEXT
+
+
+def _link_reply(result: LinkResult) -> str:
+    if result.outcome == LinkOutcome.CHAT_IN_USE and result.owner is not None:
+        return CHAT_IN_USE_TEXT.format(owner=result.owner.full_name)
+    return LINK_REPLIES[result.outcome]
 
 
 def _handle_callback(db: Session, bot: TelegramBot, callback: IncomingCallback) -> None:
