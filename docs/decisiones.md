@@ -148,3 +148,12 @@ La escribió el integrante B para no frenar su frente y A la revisa en el PR. Ag
 
 ### D-47 · Latido del worker en /health
 En cada ciclo el worker hace un upsert en `worker_heartbeats` con su `worker_id` (equipo:pid). `/health` toma el latido más reciente: hasta 60 s → `ok`, más viejo → `down`, sin filas → `never_seen`. El código HTTP depende solo de la base (200 o 503): con el worker caído la web sigue registrando tickets (regla 5), así que responde 200 con `"status": "degraded"`. Si el latido falla, el worker lo registra en el log y sigue con la cola.
+
+### D-48 · Canal de Telegram
+`NOTIFICATION_PROVIDER=telegram` usa `TelegramChannel`, que cumple el mismo `NotificationProvider` que el simulador. La pregunta A3 lleva dos botones (`c:<id de notificación>:YES|NO`, bajo el límite de 64 bytes de Telegram). El estado queda `SENT` porque Telegram no avisa a los bots de la lectura (regla 9). Con Telegram solo se encola un aviso si el destinatario tiene `telegram_chat_id`; con el simulador se sigue usando `whatsapp_opt_in`. El registro de `httpx2` se sube a WARNING porque escribe la URL completa, y en Telegram la URL lleva el token.
+
+### D-49 · Vinculación con /start y token de un solo uso
+Un bot no puede escribirle primero a nadie. En `/telegram` la persona pide un enlace `t.me/<bot>?start=<token>` (32 caracteres, vence a los `TELEGRAM_LINK_MINUTES`). Al pulsar Iniciar llega `/start <token>`, se guarda el `chat_id` y se borra el token. Un enlace nuevo invalida el anterior. Un chat no puede vincularse a dos cuentas (único en la base). El bot solo atiende chats privados.
+
+### D-50 · Respuestas por polling y no por webhook
+`python -m backend.workers.telegram_bot` pide los mensajes con `getUpdates` y espera larga (25 s). Funciona en cualquier PC sin HTTPS ni túnel, que es lo que pide la demo. Va en un proceso aparte del worker de la cola. Cada botón pulsado trae un id propio de Telegram que se guarda como `provider_event_id = tg-<id>`, así el mismo update repetido produce un solo cambio (CP-14). Solo vale el botón de la última A3 del ticket: uno de una ronda anterior responde "ya no está vigente" sin tocar la ronda nueva. Si un update falla, se registra y se sigue con el siguiente. `--once` procesa lo pendiente y confirma el offset antes de terminar.

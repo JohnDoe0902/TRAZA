@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Avisos por Telegram{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <h1 class="h3 mb-1">Avisos por Telegram</h1>
+    <p class="text-body-secondary mb-4">
+      Recibe en Telegram los avisos de tus solicitudes y confirma con un botón si se resolvió.
+    </p>
+
+    {% if flash %}
+    <div class="alert alert-{{ flash.kind }} py-2" role="status">{{ flash.text }}</div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        {% if linked %}
+          <p class="mb-3">
+            <span class="badge text-bg-success me-1">✔ Vinculado</span>
+            Tu cuenta ya recibe avisos en Telegram{% if bot_username %} desde
+            <strong>@{{ bot_username }}</strong>{% endif %}.
+          </p>
+          <form method="post" action="/telegram/desvincular">
+            <button type="submit" class="btn btn-outline-danger btn-sm">Desvincular</button>
+          </form>
+
+        {% elif link %}
+          <p class="mb-2"><span class="badge text-bg-warning me-1">⏳ Falta un paso</span>
+            Abre este enlace desde tu celular o computadora y pulsa <strong>Iniciar</strong>:</p>
+          <p class="mb-3">
+            <a class="btn btn-primary" href="{{ link.url }}" target="_blank" rel="noopener">
+              Abrir @{{ bot_username }} en Telegram
+            </a>
+          </p>
+          <p class="small text-body-secondary mb-3">
+            El enlace sirve una sola vez y vence el {{ link.expires_at | local_datetime }}.
+            Cuando el bot te confirme, recarga esta página.
+          </p>
+          <a class="btn btn-outline-secondary btn-sm" href="/telegram">Ya lo hice, recargar</a>
+
+        {% else %}
+          <p class="mb-3">
+            <span class="badge text-bg-secondary me-1">✖ No vinculado</span>
+            Todavía no recibes avisos en Telegram.
+          </p>
+          <form method="post" action="/telegram/vincular">
+            <button type="submit" class="btn btn-primary">Vincular mi Telegram</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
