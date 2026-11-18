@@ -112,6 +112,8 @@ def test_media_con_tecnico_deja_recordatorio_al_tecnico_sin_alertar(
     assert breach.safe_details_json["action"] == "technician_reminder"
     assert breach.safe_details_json["technician_id"] == actors.technician.id
     assert alert_reasons(db, ticket) == []
+    (reminder,) = [n for n in notifications_of(db, ticket) if n.message_type == MessageType.A9]
+    assert reminder.recipient_user_id == actors.technician.id
 
 
 def test_baja_sin_tecnico_alerta_al_administrador(db: Session, actors: Actors) -> None:
