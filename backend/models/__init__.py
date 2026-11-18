@@ -9,6 +9,7 @@ from backend.models.outbox_job import OutboxJob
 from backend.models.ticket import Ticket, ticket_code_seq
 from backend.models.ticket_event import TicketEvent
 from backend.models.user import User
+from backend.models.worker_heartbeat import WorkerHeartbeat
 
 __all__ = [
     "Assignment",
@@ -20,5 +21,6 @@ __all__ = [
     "Ticket",
     "TicketEvent",
     "User",
+    "WorkerHeartbeat",
     "ticket_code_seq",
 ]
