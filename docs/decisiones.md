@@ -157,3 +157,6 @@ Un bot no puede escribirle primero a nadie. En `/telegram` la persona pide un en
 
 ### D-50 · Respuestas por polling y no por webhook
 `python -m backend.workers.telegram_bot` pide los mensajes con `getUpdates` y espera larga (25 s). Funciona en cualquier PC sin HTTPS ni túnel, que es lo que pide la demo. Va en un proceso aparte del worker de la cola. Cada botón pulsado trae un id propio de Telegram que se guarda como `provider_event_id = tg-<id>`, así el mismo update repetido produce un solo cambio (CP-14). Solo vale el botón de la última A3 del ticket: uno de una ronda anterior responde "ya no está vigente" sin tocar la ronda nueva. Si un update falla, se registra y se sigue con el siguiente. `--once` procesa lo pendiente y confirma el offset antes de terminar.
+
+### D-51 · El recordatorio al técnico ya se envía (actualiza D-43)
+Con la plantilla A9 de la migración 0003, un plazo vencido de prioridad MEDIA o BAJA con técnico asignado también encola el mensaje A9 al técnico, además del `SLA_BREACHED`. Si el técnico no puede recibir por el canal activo (por ejemplo, no vinculó Telegram), queda solo el evento.

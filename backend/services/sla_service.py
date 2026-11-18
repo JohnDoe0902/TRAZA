@@ -139,6 +139,22 @@ def _register_breach(db: Session, ticket: Ticket, now: datetime) -> None:
             correlation_id=correlation_id,
             details={"reason": "sla_breached", "priority": ticket.priority.value},
         )
+    else:
+        _remind_technician(db, ticket, correlation_id)
+
+
+def _remind_technician(db: Session, ticket: Ticket, correlation_id: uuid.UUID) -> None:
+    # Mensaje A9 al técnico. Si no puede recibir por el canal activo queda solo el evento
+    assert ticket.assigned_technician_id is not None
+    technician = user_repository.get_by_id(db, ticket.assigned_technician_id)
+    if technician is not None:
+        notification_service.enqueue(
+            db,
+            ticket=ticket,
+            recipient=technician,
+            message_type=MessageType.A9,
+            correlation_id=correlation_id,
+        )
 
 
 # --- Recordatorio de confirmación -------------------------------------------------------------
