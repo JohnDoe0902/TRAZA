@@ -5,9 +5,14 @@ from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from sqlalchemy.orm import Session
 
 from backend.core.clock import utcnow
+from backend.core.config import get_settings
+from backend.core.errors import BusinessRuleViolation
+from backend.integrations import factory
+from backend.integrations.telegram_client import TelegramError
 from backend.models import User
 from backend.services import telegram_bot_service, telegram_link_service
 from backend.services.telegram_link_service import LinkOutcome
@@ -15,6 +20,7 @@ from tests.helpers import Actors
 from tests.telegram_fakes import FakeTelegram, text_update, use_telegram
 
 CHAT_ID = 900_000_001
+BOT = "traza_prueba_bot"
 
 
 @pytest.fixture(autouse=True)
@@ -23,14 +29,14 @@ def _telegram(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def token_of(db: Session, user: User) -> str:
-    link = telegram_link_service.create_link(db, user, utcnow())
+    link = telegram_link_service.create_link(db, user, utcnow(), BOT)
     return link.url.split("start=")[1]
 
 
 def test_el_enlace_apunta_al_bot_y_vence(db: Session, actors: Actors) -> None:
     now = utcnow()
 
-    link = telegram_link_service.create_link(db, actors.requester, now)
+    link = telegram_link_service.create_link(db, actors.requester, now, BOT)
 
     assert link.url.startswith("https://t.me/traza_prueba_bot?start=")
     assert link.expires_at == now + timedelta(minutes=30)
@@ -165,3 +171,58 @@ def test_pagina_pide_iniciar_sesion(client: TestClient) -> None:
     response = client.get("/telegram", follow_redirects=False)
 
     assert response.status_code in (303, 307)
+
+
+# --- Código QR y nombre del bot -----------------------------------------------------------------
+
+
+def test_sin_bot_configurado_no_se_genera_enlace(db: Session, actors: Actors) -> None:
+    with pytest.raises(BusinessRuleViolation):
+        telegram_link_service.create_link(db, actors.requester, utcnow(), None)
+
+
+def test_el_qr_es_un_svg_del_enlace() -> None:
+    svg = telegram_link_service.qr_svg("https://t.me/traza_prueba_bot?start=abc123")
+
+    assert svg.startswith("<svg")
+    assert telegram_link_service.QR_COLOR in svg
+    # El enlace no va escrito como texto dentro del dibujo, solo como código QR
+    assert "abc123" not in svg
+
+
+def test_la_pagina_muestra_el_qr_y_el_bot(
+    actors: Actors, login: Callable[[User], TestClient]
+) -> None:
+    page = login(actors.requester).post("/telegram/vincular").text
+
+    assert 'class="tg-card"' in page
+    assert "<svg" in page
+    assert "@traza_prueba_bot" in page
+
+
+def test_el_enlace_usa_el_bot_del_token_aunque_el_env_diga_otro(
+    actors: Actors, login: Callable[[User], TestClient], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Simulamos que el .env tiene un nombre mal escrito y un token de otro bot
+    settings = get_settings()
+    monkeypatch.setattr(settings, "telegram_bot_username", "nombre_equivocado_bot")
+    monkeypatch.setattr(settings, "telegram_bot_token", SecretStr("123:token-de-prueba"))
+    monkeypatch.setattr(factory, "_username_from_telegram", lambda token, timeout: "bot_real_bot")
+
+    page = login(actors.requester).post("/telegram/vincular").text
+
+    assert "https://t.me/bot_real_bot?start=" in page
+    assert "nombre_equivocado_bot" not in page
+
+
+def test_si_telegram_no_responde_se_usa_el_nombre_del_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def caido(token: str, timeout: float) -> str:
+        raise TelegramError("getMe: ConnectTimeout")
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "telegram_bot_token", SecretStr("123:token-de-prueba"))
+    monkeypatch.setattr(factory, "_username_from_telegram", caido)
+
+    assert factory.telegram_bot_username() == "traza_prueba_bot"

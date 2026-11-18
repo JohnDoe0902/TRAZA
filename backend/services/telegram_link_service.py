@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 
+import segno
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,8 @@ logger = logging.getLogger("traza.telegram")
 
 # 24 bytes salen en 32 caracteres. Telegram acepta hasta 64 en el parámetro start
 TOKEN_BYTES = 24
+# Azul de Telegram para los módulos del QR
+QR_COLOR = "#1d93d2"
 
 
 class LinkOutcome(StrEnum):
@@ -43,6 +46,7 @@ class LinkOutcome(StrEnum):
 class TelegramLink:
     url: str
     expires_at: datetime
+    bot_username: str
 
 
 @dataclass(frozen=True)
@@ -55,17 +59,32 @@ def is_linked(user: User) -> bool:
     return user.telegram_chat_id is not None
 
 
-def create_link(db: Session, user: User, now: datetime) -> TelegramLink:
-    """Genera un enlace nuevo. Si había uno anterior deja de servir."""
-    settings = get_settings()
-    if not settings.telegram_bot_username:
-        raise BusinessRuleViolation("Falta configurar TELEGRAM_BOT_USERNAME.")
-    expires_at = now + timedelta(minutes=settings.telegram_link_minutes)
+def create_link(db: Session, user: User, now: datetime, bot_username: str | None) -> TelegramLink:
+    """Genera un enlace nuevo. Si había uno anterior deja de servir.
+
+    `bot_username` llega ya resuelto (lo saca la fábrica a partir del token) así que el
+    enlace abre el bot que de verdad está corriendo en esta PC.
+    """
+    if not bot_username:
+        raise BusinessRuleViolation(
+            "Falta configurar el bot: pon TELEGRAM_BOT_TOKEN en el .env de esta PC."
+        )
+    expires_at = now + timedelta(minutes=get_settings().telegram_link_minutes)
     with atomic(db):
         user.telegram_link_token = secrets.token_urlsafe(TOKEN_BYTES)
         user.telegram_link_expires_at = expires_at
-    url = f"https://t.me/{settings.telegram_bot_username}?start={user.telegram_link_token}"
-    return TelegramLink(url=url, expires_at=expires_at)
+    url = f"https://t.me/{bot_username}?start={user.telegram_link_token}"
+    return TelegramLink(url=url, expires_at=expires_at, bot_username=bot_username)
+
+
+def qr_svg(url: str) -> str:
+    """Dibuja el enlace como QR en SVG, aquí mismo y sin servicios externos.
+
+    Va con corrección de errores alta porque encima ponemos el avión de Telegram al
+    centro. Así el código se sigue leyendo aunque el logo tape una parte.
+    """
+    code = segno.make(url, error="h")
+    return code.svg_inline(dark=QR_COLOR, light=None, border=0, omitsize=True)
 
 
 def link_chat(db: Session, token: str, chat_id: int, now: datetime) -> LinkResult:

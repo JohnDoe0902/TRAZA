@@ -1,6 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Avisos por Telegram{% endblock %}
 {% block content %}
+{% set plane %}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#229ED9"/><path fill="#fff" d="M17.6 7.2 5.9 11.7c-.8.3-.8.9 0 1.2l2.9.9 1.1 3.4c.1.4.6.5.9.2l1.6-1.5 3 2.2c.5.3 1 .1 1.1-.5l1.9-9.2c.2-.8-.3-1.3-.8-1.2Zm-2.3 2.6-5.1 4.6-.2 2.1-.9-2.8 5.9-3.8c.3-.2.5.1.3.3Z"/></svg>{% endset %}
+<style>
+  /* Tarjeta del QR al estilo de Telegram: fondo azul, tarjeta blanca y el avión arriba */
+  .tg-stage { background: linear-gradient(135deg, #37aee2 0%, #1e96c8 100%);
+              border-radius: 1.25rem; padding: 3.5rem 1rem 1.75rem; display: flex;
+              justify-content: center; }
+  .tg-card { position: relative; background: #fff; border-radius: 1.75rem;
+             width: min(300px, 100%); padding: 3.25rem 1.5rem 1.25rem; text-align: center;
+             box-shadow: 0 10px 30px rgba(0, 0, 0, .15); }
+  .tg-avatar { position: absolute; top: -2.6rem; left: 50%; transform: translateX(-50%);
+               width: 5.2rem; height: 5.2rem; border-radius: 50%; background: #fff;
+               padding: .55rem; box-shadow: 0 4px 14px rgba(0, 0, 0, .12); }
+  .tg-avatar svg { width: 100%; height: 100%; display: block; }
+  .tg-qr { position: relative; }
+  .tg-qr > svg:first-child { width: 100%; height: auto; display: block; }
+  .tg-qr-logo { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                width: 22%; aspect-ratio: 1; background: #fff; border-radius: 50%; padding: 4%; }
+  .tg-qr-logo svg { width: 100%; height: 100%; display: block; }
+  .tg-handle { margin: 1rem 0 0; font-weight: 700; font-size: 1.15rem; color: #1d93d2;
+               word-break: break-all; }
+</style>
 <div class="row justify-content-center">
   <div class="col-lg-7">
     <h1 class="h3 mb-1">Avisos por Telegram</h1>
@@ -25,18 +46,31 @@
           </form>
 
         {% elif link %}
-          <p class="mb-2"><span class="badge text-bg-warning me-1">⏳ Falta un paso</span>
-            Abre este enlace desde tu celular o computadora y pulsa <strong>Iniciar</strong>:</p>
-          <p class="mb-3">
-            <a class="btn btn-primary" href="{{ link.url }}" target="_blank" rel="noopener">
-              Abrir @{{ bot_username }} en Telegram
+          <p class="mb-3"><span class="badge text-bg-warning me-1">⏳ Falta un paso</span>
+            Escanea el código con la cámara de tu celular y pulsa <strong>Iniciar</strong>
+            en el chat del bot.</p>
+
+          <div class="tg-stage">
+            <div class="tg-card">
+              <div class="tg-avatar">{{ plane | safe }}</div>
+              <div class="tg-qr">
+                {{ qr }}
+                <span class="tg-qr-logo">{{ plane | safe }}</span>
+              </div>
+              <p class="tg-handle">@{{ link.bot_username }}</p>
+            </div>
+          </div>
+
+          <p class="small text-body-secondary mt-3 mb-2">
+            El código sirve una sola vez y vence el {{ link.expires_at | local_datetime }}.
+            Cuando el bot te diga «✅ ¡Listo!», recarga esta página.
+          </p>
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-primary btn-sm" href="{{ link.url }}" target="_blank" rel="noopener">
+              Abrir en este dispositivo
             </a>
-          </p>
-          <p class="small text-body-secondary mb-3">
-            El enlace sirve una sola vez y vence el {{ link.expires_at | local_datetime }}.
-            Cuando el bot te confirme, recarga esta página.
-          </p>
-          <a class="btn btn-outline-secondary btn-sm" href="/telegram">Ya lo hice, recargar</a>
+            <a class="btn btn-outline-secondary btn-sm" href="/telegram">Ya lo hice, recargar</a>
+          </div>
 
         {% else %}
           <p class="mb-3">

@@ -107,3 +107,10 @@ def test_los_logs_de_httpx2_no_muestran_el_token(caplog: pytest.LogCaptureFixtur
         client.send_message(55, "Hola")
 
     assert TOKEN not in caplog.text
+
+
+def test_get_me_devuelve_el_nombre_del_bot() -> None:
+    client, calls = client_with(lambda request: ok({"id": 1, "username": "mi_bot"}))
+
+    assert client.get_bot_username() == "mi_bot"
+    assert calls[0].url.path == f"/bot{TOKEN}/getMe"

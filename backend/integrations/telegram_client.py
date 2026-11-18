@@ -61,6 +61,11 @@ class TelegramClient:
         result = self._call("sendMessage", payload)
         return int(result["message_id"])
 
+    def get_bot_username(self) -> str:
+        """Pregunta a Telegram el @usuario del bot dueño del token."""
+        result = self._call("getMe", {})
+        return str(result["username"])
+
     def get_updates(self, offset: int | None, timeout_seconds: int) -> list[dict[str, Any]]:
         """Pide lo que llegó al bot. Con timeout > 0 Telegram espera hasta que haya algo."""
         payload: dict[str, Any] = {
