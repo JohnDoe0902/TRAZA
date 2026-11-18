@@ -139,8 +139,9 @@ def test_reintentos_con_espera_y_falla_definitiva(db: Session, actors: Actors) -
         if e.safe_details_json["notification_id"] == a1.id
     ]
     assert [e.safe_details_json["attempt"] for e in a1_failures] == [1, 2, 3, 4, 5]
-    alert = events_of(db, ticket, EventType.ADMIN_ALERT)
-    assert alert[0].safe_details_json["reason"] == "job_failed"
+    # El ticket es CRITICA y el reloj pasó 15 min, así que también hay alerta de plazo vencido.
+    reasons = [e.safe_details_json["reason"] for e in events_of(db, ticket, EventType.ADMIN_ALERT)]
+    assert reasons.count("job_failed") == 1
     db.refresh(ticket)
     assert ticket.status != TicketStatus.CERRADO  # la falla de mensajería no toca el ticket
 
