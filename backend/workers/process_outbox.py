@@ -203,17 +203,21 @@ def main() -> None:
         providers.composer.name,
         providers.notifier.channel.value,
     )
-    while True:
-        with SessionLocal() as db:
-            processed = (
-                drain(db, providers=providers)
-                if args.once
-                else process_batch(db, providers=providers)
-            )
-        if args.once:
-            logger.info("Ciclo único terminado: %s trabajos", processed)
-            return
-        time.sleep(poll_seconds)
+    try:
+        while True:
+            with SessionLocal() as db:
+                processed = (
+                    drain(db, providers=providers)
+                    if args.once
+                    else process_batch(db, providers=providers)
+                )
+            if args.once:
+                logger.info("Ciclo único terminado: %s trabajos", processed)
+                return
+            time.sleep(poll_seconds)
+    except KeyboardInterrupt:
+        # Ctrl+C. Lo que estaba a medias vuelve a PENDING solo gracias a la recuperación
+        logger.info("Worker detenido")
 
 
 if __name__ == "__main__":
