@@ -29,26 +29,33 @@ from backend.services.telegram_link_service import LinkOutcome
 logger = logging.getLogger("traza.telegram")
 
 HELP_TEXT = (
-    "Hola. Soy el bot de avisos de TRAZA. Para recibir aquí tus avisos entra a TRAZA, "
-    "abre la opción Telegram y pulsa Vincular."
+    "👋 Hola, soy el bot de avisos de TRAZA.\n\n"
+    "Para recibir aquí tus avisos:\n"
+    "1. Entra a TRAZA con tu cuenta.\n"
+    "2. Abre la opción Telegram del menú.\n"
+    "3. Pulsa Vincular y abre el enlace."
 )
 
 LINK_REPLIES = {
-    LinkOutcome.LINKED: "Listo. Tu cuenta de TRAZA quedó vinculada y aquí te llegarán los avisos.",
-    LinkOutcome.ALREADY_LINKED: "Tu cuenta ya estaba vinculada. No hace falta hacer nada más.",
-    LinkOutcome.INVALID: "Ese enlace no es válido. Pide uno nuevo desde TRAZA.",
-    LinkOutcome.EXPIRED: "Ese enlace ya venció. Pide uno nuevo desde TRAZA.",
-    LinkOutcome.CHAT_IN_USE: "Este Telegram ya está vinculado a otra cuenta de TRAZA.",
+    LinkOutcome.LINKED: (
+        "✅ ¡Listo! Tu cuenta de TRAZA quedó vinculada.\n\n"
+        "Desde ahora te llegarán aquí los avisos de tus solicitudes."
+    ),
+    LinkOutcome.ALREADY_LINKED: "👌 Tu cuenta ya estaba vinculada. No hace falta hacer nada más.",
+    LinkOutcome.INVALID: "⚠️ Ese enlace no es válido. Pide uno nuevo desde TRAZA.",
+    LinkOutcome.EXPIRED: "⌛ Ese enlace ya venció. Pide uno nuevo desde TRAZA.",
+    LinkOutcome.CHAT_IN_USE: "🚫 Este Telegram ya está vinculado a otra cuenta de TRAZA.",
 }
 
+# Estos salen como aviso corto arriba del chat. Telegram los corta a 200 caracteres
 ANSWER_REPLIES = {
-    AnswerOutcome.CLOSED: "Gracias por confirmar. Cerramos tu solicitud.",
-    AnswerOutcome.REOPENED: "Entendido. Reabrimos tu solicitud y avisamos al técnico.",
-    AnswerOutcome.IGNORED: "Ya teníamos tu respuesta. No cambiamos nada.",
+    AnswerOutcome.CLOSED: "✅ Gracias por confirmar. Cerramos tu solicitud.",
+    AnswerOutcome.REOPENED: "🔄 Entendido. Reabrimos tu solicitud y avisamos al técnico.",
+    AnswerOutcome.IGNORED: "👌 Ya teníamos tu respuesta. No cambiamos nada.",
 }
 
-NOT_VALID_ANYMORE = "Esta pregunta ya no está vigente."
-NOT_FOR_YOU = "Este botón no es para ti."
+NOT_VALID_ANYMORE = "⌛ Esta pregunta ya no está vigente."
+NOT_FOR_YOU = "🚫 Este botón no es para ti."
 
 
 # --- Lo que llega de Telegram, ya ordenado ----------------------------------------------------

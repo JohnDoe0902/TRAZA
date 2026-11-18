@@ -31,7 +31,12 @@ class FakeTelegram:
     _message_ids: itertools.count = field(default_factory=lambda: itertools.count(1))
 
     def send_message(
-        self, chat_id: int, text: str, buttons: list[InlineButton] | None = None
+        self,
+        chat_id: int,
+        text: str,
+        buttons: list[InlineButton] | None = None,
+        *,
+        html: bool = False,
     ) -> int:
         if self.fail_sends:
             raise ConnectionError("Telegram caído (simulado)")

@@ -1,7 +1,8 @@
 """Canal de Telegram: manda los avisos al chat vinculado de cada usuario (D-41).
 
 Cumple el mismo Protocol que el simulador así que el resto del sistema no cambia.
-La pregunta de confirmación (A3) lleva los botones Sí y No.
+La pregunta de confirmación (A3) lleva los botones Sí y No. El diseño de cada aviso
+está en telegram_format.
 
 Regla 9: enviado no es entregado. Telegram no avisa a los bots cuando alguien lee un
 mensaje, así que lo más que podemos decir con evidencia es SENT.
@@ -11,6 +12,7 @@ from dataclasses import dataclass
 
 from backend.integrations.base import OutgoingMessage, SendResult
 from backend.integrations.telegram_client import InlineButton, TelegramClient, TelegramError
+from backend.integrations.telegram_format import format_message
 from backend.models.enums import (
     ConfirmationAnswer,
     MessageType,
@@ -72,5 +74,6 @@ class TelegramChannel:
             if message.message_type == MessageType.A3
             else None
         )
-        message_id = self._client.send_message(message.telegram_chat_id, message.body, buttons)
+        text = format_message(message)
+        message_id = self._client.send_message(message.telegram_chat_id, text, buttons, html=True)
         return SendResult(status=NotificationStatus.SENT, provider_message_id=str(message_id))

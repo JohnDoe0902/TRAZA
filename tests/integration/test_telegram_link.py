@@ -108,7 +108,7 @@ def test_el_bot_contesta_al_vincular(db: Session, actors: Actors) -> None:
     telegram_bot_service.handle_update(db, bot, update, utcnow())
 
     assert actors.requester.telegram_chat_id == CHAT_ID
-    assert bot.sent[0].text.startswith("Listo.")
+    assert bot.sent[0].text == telegram_bot_service.LINK_REPLIES[LinkOutcome.LINKED]
 
 
 def test_sin_token_el_bot_explica_que_hacer(db: Session) -> None:

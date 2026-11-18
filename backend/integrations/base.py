@@ -61,6 +61,9 @@ class OutgoingMessage:
     phone_e164: str | None
     # Solo lo usa el canal de Telegram. Es el chat que la persona vinculó con el bot
     telegram_chat_id: int | None = None
+    # Datos del ticket para armar la ficha del mensaje. Son del propio destinatario
+    ticket_code: str | None = None
+    ticket_title: str | None = None
 
 
 @dataclass(frozen=True)

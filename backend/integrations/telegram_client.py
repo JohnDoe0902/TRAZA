@@ -42,10 +42,18 @@ class TelegramClient:
         self._http = http or httpx2.Client(timeout=timeout)
 
     def send_message(
-        self, chat_id: int, text: str, buttons: list[InlineButton] | None = None
+        self,
+        chat_id: int,
+        text: str,
+        buttons: list[InlineButton] | None = None,
+        *,
+        html: bool = False,
     ) -> int:
         """Manda un texto y devuelve el id del mensaje en Telegram."""
         payload: dict[str, Any] = {"chat_id": chat_id, "text": text}
+        if html:
+            # Permite <b>, <i> y <code>. Quien arma el texto debe escapar lo del usuario
+            payload["parse_mode"] = "HTML"
         if buttons:
             # Todos los botones van en una sola fila. Para Sí y No queda bien
             row = [{"text": b.text, "callback_data": b.callback_data} for b in buttons]
