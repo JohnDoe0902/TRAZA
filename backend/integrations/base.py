@@ -59,6 +59,11 @@ class OutgoingMessage:
     message_type: MessageType
     body: str
     phone_e164: str | None
+    # Solo lo usa el canal de Telegram. Es el chat que la persona vinculó con el bot
+    telegram_chat_id: int | None = None
+    # Datos del ticket para armar la ficha del mensaje. Son del propio destinatario
+    ticket_code: str | None = None
+    ticket_title: str | None = None
 
 
 @dataclass(frozen=True)
@@ -92,3 +97,13 @@ class MessageComposer(Protocol):
     name: str
 
     def compose(self, request: ComposeRequest) -> str: ...
+
+
+class TelegramBot(Protocol):
+    """Lo que el servicio del bot necesita de Telegram. En las pruebas va uno falso."""
+
+    def send_message(self, chat_id: int, text: str) -> int: ...
+
+    def answer_callback(self, callback_query_id: str, text: str) -> None: ...
+
+    def remove_buttons(self, chat_id: int, message_id: int) -> None: ...

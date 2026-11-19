@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     classifier_provider: Literal["mock", "rules", "openai"] = "mock"
     message_composer: Literal["templates", "openai"] = "templates"
-    notification_provider: Literal["simulated", "whatsapp"] = "simulated"
+    notification_provider: Literal["simulated", "whatsapp", "telegram"] = "simulated"
 
     openai_api_key: SecretStr | None = None
     openai_model: str | None = None
@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str | None = None
     whatsapp_app_secret: SecretStr | None = None
     whatsapp_verify_token: SecretStr | None = None
+
+    # Bot de Telegram (D-41). El token va solo en el .env, nunca en el código
+    telegram_bot_token: SecretStr | None = None
+    telegram_bot_username: str | None = None
+    telegram_timeout_seconds: float = 10
+    # Cuánto dura el enlace para vincular la cuenta de Telegram
+    telegram_link_minutes: int = 30
 
     outbox_poll_seconds: int = 5
     outbox_max_attempts: int = 5
