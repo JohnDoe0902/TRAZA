@@ -42,4 +42,5 @@ def test_seed_es_idempotente(db: Session) -> None:
 def test_health_informa_base_disponible(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "database": "ok"}
+    # El detalle del worker y la cola está en test_health.py
+    assert response.json()["database"] == "ok"

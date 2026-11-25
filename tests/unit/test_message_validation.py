@@ -25,6 +25,7 @@ NATURAL_STATUS = {
     MessageType.A6: S.ASIGNADO,
     MessageType.A7: S.PENDIENTE_CONFIRMACION,
     MessageType.A8: S.REABIERTO,
+    MessageType.A9: S.ASIGNADO,
 }
 
 

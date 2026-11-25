@@ -39,6 +39,9 @@ TEMPLATES: dict[MessageType, str] = {
     MessageType.A8: (
         "El solicitante indicó que el problema de {codigo} continúa. El ticket volvió a tu bandeja."
     ),
+    MessageType.A9: (
+        "Recordatorio: {codigo} superó su plazo de primera atención. Revísalo en tu bandeja."
+    ),
 }
 
 
@@ -74,6 +77,7 @@ PURPOSES: dict[MessageType, str] = {
     MessageType.A6: "Avisar al administrador que un mensaje no se pudo enviar.",
     MessageType.A7: "Recordar al solicitante que confirme si se resolvió su solicitud.",
     MessageType.A8: "Avisar al técnico que el solicitante indicó que el problema continúa.",
+    MessageType.A9: "Recordar al técnico que el ticket superó su plazo de primera atención.",
 }
 
 STATUS_LABELS_FOR_MESSAGES: dict[TicketStatus, str] = {

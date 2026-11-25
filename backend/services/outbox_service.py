@@ -69,20 +69,26 @@ def mark_failed_attempt(db: Session, job_id: int, error: BaseException, now: dat
         job.status = JobStatus.FAILED
         job.completed_at = now
         if job.job_type == JobType.SEND_NOTIFICATION:
-            notification_service.mark_failed(db, int(job.payload_safe_json["notification_id"]))
+            notification_service.mark_failed(
+                db, int(job.payload_safe_json["notification_id"]), _correlation_of(job)
+            )
         ticket = ticket_repository.get_by_id(db, job.ticket_id) if job.ticket_id else None
         if ticket is not None:
             _alert_admin(db, ticket, job)
 
 
-def _alert_admin(db: Session, ticket: Ticket, job: OutboxJob) -> None:
+def _correlation_of(job: OutboxJob) -> uuid.UUID:
     correlation = job.payload_safe_json.get("correlation_id")
+    return uuid.UUID(correlation) if correlation else uuid.uuid4()
+
+
+def _alert_admin(db: Session, ticket: Ticket, job: OutboxJob) -> None:
     audit_service.record_event(
         db,
         ticket=ticket,
         event_type=EventType.ADMIN_ALERT,
         actor=None,
-        correlation_id=uuid.UUID(correlation) if correlation else uuid.uuid4(),
+        correlation_id=_correlation_of(job),
         details={
             "reason": "job_failed",
             "job_id": job.id,

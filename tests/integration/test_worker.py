@@ -101,7 +101,7 @@ def test_trabajo_running_reciente_no_se_toca(db: Session, actors: Actors) -> Non
     assert job.status == JobStatus.RUNNING
 
 
-def test_reintentos_con_espera_y_falla_definitiva(db: Session, actors: Actors) -> None:
+def test_cp10_falla_definitiva_deja_failed_y_el_ticket_intacto(db: Session, actors: Actors) -> None:
     ticket = new_ticket(db, actors.requester)
     notifier = FailingNotifier()
     providers = fake_providers(notifier=notifier)
@@ -139,13 +139,14 @@ def test_reintentos_con_espera_y_falla_definitiva(db: Session, actors: Actors) -
         if e.safe_details_json["notification_id"] == a1.id
     ]
     assert [e.safe_details_json["attempt"] for e in a1_failures] == [1, 2, 3, 4, 5]
-    alert = events_of(db, ticket, EventType.ADMIN_ALERT)
-    assert alert[0].safe_details_json["reason"] == "job_failed"
+    # El ticket es CRITICA y el reloj pasó 15 min, así que también hay alerta de plazo vencido.
+    reasons = [e.safe_details_json["reason"] for e in events_of(db, ticket, EventType.ADMIN_ALERT)]
+    assert reasons.count("job_failed") == 1
     db.refresh(ticket)
     assert ticket.status != TicketStatus.CERRADO  # la falla de mensajería no toca el ticket
 
 
-def test_falla_temporal_se_recupera_al_reintentar(db: Session, actors: Actors) -> None:
+def test_cp11_falla_temporal_se_recupera_al_reintentar(db: Session, actors: Actors) -> None:
     ticket = new_ticket(db, actors.requester)
     providers = fake_providers(notifier=FailingNotifier(failures=1))
     start = utcnow()

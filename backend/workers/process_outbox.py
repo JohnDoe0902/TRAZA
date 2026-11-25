@@ -32,12 +32,26 @@ from backend.models.enums import JobType
 from backend.services import (
     assignment_service,
     classification_service,
+    health_service,
     notification_service,
     outbox_service,
+    sla_service,
 )
 
 logger = logging.getLogger("traza.worker")
 BATCH_SIZE = 20
+
+
+@dataclass(frozen=True)
+class WorkerIdentity:
+    """Quién es este worker y desde cuándo corre. Va en cada latido."""
+
+    worker_id: str = field(default_factory=health_service.default_worker_id)
+    started_at: datetime = field(default_factory=utcnow)
+
+
+# El proceso arranca una sola vez así que su identidad se arma al importar el módulo
+DEFAULT_IDENTITY = WorkerIdentity()
 
 
 @dataclass
@@ -106,19 +120,46 @@ def run_job(db: Session, job: OutboxJob, providers: Providers, now: datetime) ->
     return True
 
 
+def send_heartbeat(db: Session, identity: WorkerIdentity, now: datetime) -> None:
+    """Deja la señal de vida para /health. Si falla lo anotamos y la cola sigue igual."""
+    try:
+        health_service.record_heartbeat(db, identity.worker_id, identity.started_at, now)
+    except Exception as exc:
+        db.rollback()
+        logger.error("No se pudo registrar el latido: %s", type(exc).__name__)
+
+
+def run_time_checks(db: Session, now: datetime) -> None:
+    """Plazos y recordatorios (sección 13.5). Si fallan, la cola sigue funcionando."""
+    try:
+        result = sla_service.run_checks(db, now)
+    except Exception as exc:
+        db.rollback()
+        logger.error("Revisión de plazos y recordatorios falló: %s", type(exc).__name__)
+        return
+    if result.sla_breached or result.reminders:
+        logger.info(
+            "Plazos vencidos: %s · recordatorios: %s", result.sla_breached, result.reminders
+        )
+
+
 def process_batch(
     db: Session,
     *,
     providers: Providers | None = None,
     now: datetime | None = None,
     limit: int = BATCH_SIZE,
+    identity: WorkerIdentity = DEFAULT_IDENTITY,
 ) -> int:
-    """Un ciclo: recupera abandonados, toma los vencidos y los ejecuta. Devuelve cuántos tomó."""
+    """Un ciclo: latido, recupera abandonados, revisa plazos y recordatorios, toma los trabajos
+    vencidos y los ejecuta. Devuelve cuántos trabajos tomó."""
     providers = providers or Providers()
     now = now or utcnow()
+    send_heartbeat(db, identity, now)
     recovered = outbox_service.recover_stale_jobs(db, now)
     if recovered:
         logger.warning("%s trabajos abandonados volvieron a PENDING", recovered)
+    run_time_checks(db, now)
     jobs = outbox_service.claim_due_jobs(db, now, limit)
     for job in jobs:
         run_job(db, job, providers, now)
@@ -162,17 +203,21 @@ def main() -> None:
         providers.composer.name,
         providers.notifier.channel.value,
     )
-    while True:
-        with SessionLocal() as db:
-            processed = (
-                drain(db, providers=providers)
-                if args.once
-                else process_batch(db, providers=providers)
-            )
-        if args.once:
-            logger.info("Ciclo único terminado: %s trabajos", processed)
-            return
-        time.sleep(poll_seconds)
+    try:
+        while True:
+            with SessionLocal() as db:
+                processed = (
+                    drain(db, providers=providers)
+                    if args.once
+                    else process_batch(db, providers=providers)
+                )
+            if args.once:
+                logger.info("Ciclo único terminado: %s trabajos", processed)
+                return
+            time.sleep(poll_seconds)
+    except KeyboardInterrupt:
+        # Ctrl+C. Lo que estaba a medias vuelve a PENDING solo gracias a la recuperación
+        logger.info("Worker detenido")
 
 
 if __name__ == "__main__":

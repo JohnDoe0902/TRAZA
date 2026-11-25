@@ -1,6 +1,7 @@
 """Notificaciones: se encolan en la transacción del cambio y el worker las entrega.
 
-- Solo se notifica a usuarios con `whatsapp_opt_in` (RN-14).
+- Solo se notifica a quien puede recibir por el canal activo (RN-14): con Telegram, a quien
+  vinculó su cuenta; con el simulador, a quien tiene `whatsapp_opt_in`.
 - Cada notificación tiene `idempotency_key` y estado propio (RN-09).
 - El estado solo avanza con la respuesta del proveedor o del simulador (regla 9).
 - Si hay un redactor externo (GPT), redacta justo antes del primer envío; si falla o su texto
@@ -31,9 +32,19 @@ DELIVERABLE_STATUSES = (NotificationStatus.PENDING, NotificationStatus.RETRYING)
 
 
 def current_channel() -> NotificationChannel:
-    if get_settings().notification_provider == "whatsapp":
+    provider = get_settings().notification_provider
+    if provider == "telegram":
+        return NotificationChannel.TELEGRAM
+    if provider == "whatsapp":
         return NotificationChannel.WHATSAPP
     return NotificationChannel.SIMULATED
+
+
+def can_receive(recipient: User, channel: NotificationChannel) -> bool:
+    """Por Telegram solo llega a quien vinculó su chat. Los demás canales usan el opt-in."""
+    if channel == NotificationChannel.TELEGRAM:
+        return recipient.telegram_chat_id is not None
+    return recipient.whatsapp_opt_in
 
 
 def enqueue(
@@ -43,12 +54,14 @@ def enqueue(
     recipient: User,
     message_type: MessageType,
     correlation_id: uuid.UUID,
+    attempt: int | None = None,
 ) -> Notification | None:
     """Crea la notificación (PENDING) y su trabajo SEND_NOTIFICATION, sin confirmar.
 
-    Devuelve None si el destinatario no aceptó WhatsApp.
+    Devuelve None si el destinatario no puede recibir por el canal activo.
     """
-    if not recipient.whatsapp_opt_in:
+    channel = current_channel()
+    if not can_receive(recipient, channel):
         return None
 
     key = f"{ticket.id}:{message_type.value}:{recipient.id}:{correlation_id}"
@@ -59,14 +72,16 @@ def enqueue(
     body = message_service.compose(
         message_type,
         message_service.MessageContext(
-            code=ticket.public_code, first_name=message_service.first_name(recipient.full_name)
+            code=ticket.public_code,
+            first_name=message_service.first_name(recipient.full_name),
+            attempt=attempt,
         ),
     )
     notification = notification_repository.add(
         db,
         Notification(
             ticket_id=ticket.id,
-            channel=current_channel(),
+            channel=channel,
             recipient_user_id=recipient.id,
             message_type=message_type,
             body=body,
@@ -115,6 +130,9 @@ def deliver(
         message_type=notification.message_type,
         body=notification.body,
         phone_e164=recipient.phone_e164 if recipient.whatsapp_opt_in else None,
+        telegram_chat_id=recipient.telegram_chat_id,
+        ticket_code=ticket.public_code,
+        ticket_title=ticket.title,
     )
     try:
         result = provider.send(message)
@@ -181,8 +199,30 @@ def _compose(
     return text, {"composer": composer.name}
 
 
-def mark_failed(db: Session, notification_id: int) -> None:
-    """Agotados los reintentos, la notificación queda FAILED (nunca 'entregada')."""
+def mark_failed(db: Session, notification_id: int, correlation_id: uuid.UUID) -> None:
+    """Agotados los reintentos, la notificación queda FAILED (nunca 'entregada').
+
+    Además avisa a los administradores con A6 para que revisen qué pasó.
+    """
     notification = notification_repository.get(db, notification_id)
-    if notification is not None and notification.status in DELIVERABLE_STATUSES:
-        notification.status = NotificationStatus.FAILED
+    if notification is None or notification.status not in DELIVERABLE_STATUSES:
+        return
+    notification.status = NotificationStatus.FAILED
+    # Si lo que falló ya era un A6 no mandamos otro. Si no, una caída del canal
+    # generaría avisos de avisos sin fin
+    if notification.message_type != MessageType.A6:
+        _alert_admins(db, notification, correlation_id)
+
+
+def _alert_admins(db: Session, failed: Notification, correlation_id: uuid.UUID) -> None:
+    ticket = db.get(Ticket, failed.ticket_id)
+    assert ticket is not None
+    for admin in user_repository.list_active_admins(db):
+        enqueue(
+            db,
+            ticket=ticket,
+            recipient=admin,
+            message_type=MessageType.A6,
+            correlation_id=correlation_id,
+            attempt=failed.attempt_count,
+        )

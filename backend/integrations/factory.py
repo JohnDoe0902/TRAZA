@@ -4,6 +4,8 @@ Si se elige OpenAI sin credenciales, el proceso no arranca: un error de configur
 verse, no esconderse detrás del respaldo por reglas.
 """
 
+from functools import lru_cache
+
 import openai
 
 from backend.core.config import ConfigurationError, Settings, get_settings
@@ -16,6 +18,8 @@ from backend.integrations.mock_provider import MockProvider
 from backend.integrations.openai_provider import OpenAIComposer, OpenAIProvider
 from backend.integrations.rule_provider import RuleProvider
 from backend.integrations.simulated_whatsapp import SimulatedWhatsApp
+from backend.integrations.telegram_channel import TelegramChannel
+from backend.integrations.telegram_client import TelegramClient, TelegramError
 from backend.services.message_service import TemplateComposer
 
 
@@ -50,8 +54,46 @@ def get_composer(settings: Settings | None = None) -> MessageComposer:
     return TemplateComposer()
 
 
-def get_notification_provider() -> NotificationProvider:
-    provider = get_settings().notification_provider
-    if provider == "whatsapp":
-        raise NotImplementedError("WhatsAppCloudProvider llega en la Fase 4; usa simulated.")
+def telegram_client(settings: Settings | None = None) -> TelegramClient:
+    """Igual que con OpenAI: si falta el token el proceso no arranca y se ve el porqué."""
+    settings = settings or get_settings()
+    token = settings.telegram_bot_token.get_secret_value() if settings.telegram_bot_token else ""
+    if not token:
+        raise ConfigurationError(
+            "Elegiste Telegram, pero falta TELEGRAM_BOT_TOKEN en el .env. "
+            "Créalo con @BotFather o usa NOTIFICATION_PROVIDER=simulated."
+        )
+    return TelegramClient(token, timeout=settings.telegram_timeout_seconds)
+
+
+@lru_cache(maxsize=4)
+def _username_from_telegram(token: str, timeout: float) -> str:
+    # Una sola consulta por proceso y por token. El nombre del bot no cambia
+    return TelegramClient(token, timeout=timeout).get_bot_username()
+
+
+def telegram_bot_username(settings: Settings | None = None) -> str | None:
+    """Nombre del bot para armar el enlace de vinculación.
+
+    Si hay token se lo preguntamos a Telegram. Así el enlace siempre abre el bot del
+    token aunque TELEGRAM_BOT_USERNAME esté mal escrito o falte. Si Telegram no responde
+    usamos lo que diga el .env.
+    """
+    settings = settings or get_settings()
+    configured = settings.telegram_bot_username
+    token = settings.telegram_bot_token.get_secret_value() if settings.telegram_bot_token else ""
+    if not token:
+        return configured
+    try:
+        return _username_from_telegram(token, settings.telegram_timeout_seconds)
+    except TelegramError:
+        return configured
+
+
+def get_notification_provider(settings: Settings | None = None) -> NotificationProvider:
+    settings = settings or get_settings()
+    if settings.notification_provider == "telegram":
+        return TelegramChannel(telegram_client(settings))
+    if settings.notification_provider == "whatsapp":
+        raise NotImplementedError("WhatsApp quedó para la V2 (D-41); usa telegram o simulated.")
     return SimulatedWhatsApp()
